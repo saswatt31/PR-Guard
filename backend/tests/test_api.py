@@ -37,6 +37,8 @@ def add_run(
         run.repo_full_name = repo
         run.repo_owner = owner
         run.repo_name = name
+        # Each fixture run represents a distinct commit; runs are unique by repo+head.
+        run.head_sha = f"head-{delivery_id}"
         if created_at is not None:
             run.created_at = created_at
             run.updated_at = created_at

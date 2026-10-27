@@ -22,6 +22,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -150,7 +151,10 @@ class Run(Base):
         back_populates="run", uselist=False, cascade="all, delete-orphan"
     )
 
-    __table_args__ = (Index("ix_runs_repo_pr", "repo_full_name", "pr_number"),)
+    __table_args__ = (
+        UniqueConstraint("repo_full_name", "head_sha", name="uq_runs_repo_head"),
+        Index("ix_runs_repo_pr", "repo_full_name", "pr_number"),
+    )
 
 
 class Job(Base):

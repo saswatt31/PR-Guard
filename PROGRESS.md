@@ -687,3 +687,102 @@ where Docker is not installed.
   its output is never described as Docker or live-LLM verification), D035 (dashboard
   screenshots are captured from the real API and demo database, with explicit local-demo
   captions).
+
+## Phase 10 - Documentation, final review and release readiness
+
+**Documentation added**
+- `CORE_FUNCTIONS.md`: 40+ functions across ingress, queue, GitHub, diff, coverage, config,
+  LLM, graph, safety, results, sandbox, orchestration, comment, API and the smoke harness.
+  Each entry has the signature, behaviour, failure handling, tests and the limits of what
+  was actually verified.
+- `INTERVIEW_PREP.md`: 60-second pitch, architecture summary, five-minute demo script, 40
+  questions with answers, whiteboard prompts, numbers to remember and a "say this plainly"
+  honesty checklist.
+- `README.md`: rewritten as the project entry point with the two local-run screenshots and
+  explicit captions, architecture diagram, stack, layout, per-component quickstarts,
+  configuration tables, `.prguard.yml` example, security summary, docs map, measured
+  verification matrix and known limitations.
+- `ARCHITECTURE.md`: status updated through Phase 10; failure modes expanded; a new
+  verification/evidence section records exactly what ran and what did not.
+- `SECURITY.md`: status updated to Phase 10 with the local smoke caveat; the Docker and
+  live-service gaps remain explicit.
+
+**Final review**
+- Cross-checked documentation against code: function signatures, defaults, caps, status
+  codes, table names, test file names and the reported smoke values.
+- Checked for broken relative links in the root docs, for secret-shaped strings in the
+  documentation, and for ignored runtime/secret paths (`.env`, `*.pem`, `data/`, `*.db`).
+- Confirmed no document claims a Docker run, image build, Compose start, live GitHub/LLM
+  call or GitHub Actions result. The only end-to-end claim is the labelled local smoke.
+- The review also caught a documentation claim that the code did not yet enforce:
+  idempotency was described as a database constraint on `(repo, head_sha)`, but `Run`
+  only had an application-level pre-check. A concurrent redelivery could insert two runs.
+  This turned the final pass into a small code fix rather than docs-only work.
+
+**Post-review code fix**
+- Added `UniqueConstraint("repo_full_name", "head_sha", name="uq_runs_repo_head")` to
+  `Run`; `test_run_repo_and_head_sha_must_be_unique` proves a second insert fails.
+- `process_event` keeps the friendly pre-check. If a concurrent insert loses the race,
+  the `IntegrityError` path now looks up the winning delivery or commit and returns that
+  outcome; three tests simulate the race (delivery wins, commit wins, no winner re-raises).
+- `test_api.add_run` now varies `head_sha` per run because the constraint is real.
+- Earlier 421-test snapshots in Phases 7-9 are historical; the current suite is recorded
+  below.
+
+**Final verification (executed)**
+- Backend: **426 passed, 1 skipped, 95.16%**; only skip is the real-Docker test. The
+  post-review fix added five tests: the uniqueness constraint test, the repo-scoped
+  commit lookup test and three simulated race-path tests.
+  `ruff check app tests scripts` and `ruff format --check app tests scripts` clean.
+- Dashboard: **29 passed**; 99.21% statements / 91.97% branches / 100% functions / 100%
+  lines; production build succeeded; Playwright **3 passed**; `npm audit` 0.
+- Demo repository: **11 passed**, 100% statements/branches/functions/lines; typecheck
+  clean; `npm audit` 0.
+- Local smoke (Phase 9): run `39fafcce-17dc-4316-b70c-fdf4d43eb436`, succeeded, 1 verified
+  test, 78.57% -> 100.00%, 2 FakeLLM calls, 1,294 tokens, six steps.
+- Docker, live GitHub, live Groq/Anthropic and GitHub Actions remain **unverified**; see
+  README "Verification, honestly", `ARCHITECTURE.md` section 8 and `INTERVIEW_PREP.md`.
+
+**Files to read**
+- `README.md` - entry point, screenshots, quickstart, verification matrix.
+- `CORE_FUNCTIONS.md` - code-reading guide with test mapping.
+- `INTERVIEW_PREP.md` - pitch and 40 questions.
+- `ARCHITECTURE.md` - system view, schema, failure modes, evidence.
+- `SECURITY.md` - threat model and residual risks.
+
+**Interview questions**
+1. How do you present a project with real gaps without undermining trust? (Lead with the
+   verification matrix; label every screenshot and smoke run with its exact execution mode;
+   state skipped tests and unverified services next to the passing numbers. A reviewer
+   trusts calibrated claims more than a wall of green badges.)
+2. Why write `CORE_FUNCTIONS.md` instead of only a README? (It is a code-reading route for
+   reviewers and interviewers: it explains the invariant each risky function owns, the
+   failure path, and the tests that would catch a regression. It also forces the author to
+   reconcile docs with signatures.)
+3. What did the final review catch? (Inconsistent status headers, a draft failure-modes
+   heading, missing caveats around the local screenshots, and a docs map that did not
+   include the new files. Re-reading the idempotency claim against the schema also
+   exposed a missing database uniqueness constraint; that became a small code fix with
+   five tests, not a docs-only edit.)
+4. What would "release ready" mean for this project? (Authenticated dashboard, a dedicated
+   sandbox runner instead of the Docker socket, Postgres/multi-worker, comment
+   deduplication via update, a live end-to-end test with a scratch GitHub App and provider
+   key, and a CI run that builds and exercises the images.)
+5. Why include a "say this plainly" checklist? (Interviewers probe claims. Having the
+   precise sentence ready - "backend/dashboard/demo/local smoke passed; Docker, live
+   providers, live GitHub and CI did not run here" - prevents accidental overclaiming and
+   demonstrates engineering judgment.)
+
+**Simplified / mocked**
+- One code change: the `(repo_full_name, head_sha)` unique constraint, the race fallback
+  and its five tests. The rest of the phase was documentation.
+- The race-path tests simulate `IntegrityError`; SQLite serialises writers, so they do not
+  create two real concurrent HTTP requests.
+- The screenshots and smoke remain a local FakeLLM/local-runner demo, as labelled.
+- Docker, live external services and CI are still not verified in this environment.
+
+## Phase 10 decisions added
+- D036 (evidence levels are stated explicitly in every document and screenshot caption;
+  documented results distinguish executed, mocked and unverified paths).
+- D037 (repo + head SHA idempotency is a database unique constraint; the handler's
+  pre-check is an optimisation, and the losing side of a race returns the existing run).

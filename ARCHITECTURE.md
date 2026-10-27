@@ -1,9 +1,11 @@
 # Architecture
 
-> Status after Phase 8. The webhook, worker, run processor, agent graph, LLM/config layer,
-> sandbox, Next.js dashboard, demo repository and CI matrix are implemented. Final
-> end-to-end verification and the interview/README docs are Phase 9–10. Data-flow details
-> and failure modes are expanded in Phase 10; every table and field below already reflects
+> Status after Phase 10. The webhook, worker, run processor, agent graph, LLM/config layer,
+> sandbox, Next.js dashboard, demo repository, CI matrix and documentation are implemented.
+> The Phase 9 local smoke executed the real pipeline with real npm/Vitest, a fake GitHub
+> client, `FakeLLM` and `LocalSandboxRunner`; it is **not** Docker or live-provider
+> verification. Docker is unavailable on the build machine, so container execution, image
+> builds, Compose and GitHub Actions remain unverified. Every table and field below reflects
 > the implemented SQLAlchemy models.
 
 ## 1. System view
@@ -220,7 +222,7 @@ SQLAlchemy exposes Python dicts.
 | `delivery_id` | FK unique | One run per delivery. |
 | `repo_full_name`, `repo_owner`, `repo_name` | strings | Repository identity. |
 | `pr_number` | int | PR number. |
-| `head_sha`, `base_sha` | strings | Exact commits analysed. |
+| `head_sha`, `base_sha` | strings | Exact commits analysed; `(repo_full_name, head_sha)` is unique (`uq_runs_repo_head`). |
 | `installation_id` | int | GitHub App installation. |
 | `sender_login` | string | Actor shown in UI. |
 | `is_fork` | bool | Fork PR policy flag. |
@@ -302,10 +304,11 @@ SQLAlchemy exposes Python dicts.
 | `cost_usd` | float | LLM cost. |
 | `created_at` | datetime | Creation time. |
 
-## 7. Failure modes (draft, expanded in Phase 10)
+## 7. Failure modes
 
-- **GitHub down / rate limited:** job stays failed with error; retry from dashboard is a
-  future extension. Webhook still returns 202 after durable enqueue.
+- **GitHub down / rate limited:** the processor raises `GitHubAPIError`; the job stays
+  failed with the error, and no comment is posted. The webhook already returned 202 because
+  enqueue is durable. A retry from the dashboard is a future extension.
 - **LLM returns malformed JSON:** schema validation rejects it, the gap is reported as
   skipped; no test is executed.
 - **LLM budget exhausted:** remaining gaps are not written; already verified tests are
@@ -329,7 +332,43 @@ SQLAlchemy exposes Python dicts.
 - **Test never passes:** dropped after the attempt cap and listed as "could not verify".
 - **Worker crashes mid-run:** `jobs.status=processing` + stale `started_at` is reclaimed
   by the worker on startup (Phase 2).
-- **Duplicate webhook:** unique `delivery_id` returns 200/202 without a second run.
+- **Duplicate webhook:** unique `delivery_id` returns 200/202 without a second run; a new
+  delivery for an already-analysed `(repo, head_sha)` returns `duplicate_commit` instead of
+  spending again.
 - **Prompt injection in diff:** all repository content is wrapped as untrusted data with
   closing tags neutralized; generated code is static-checked and only executed inside the
   sandbox.
+
+## 8. Verification and evidence
+
+The following were executed on the development machine:
+
+| Check | Result |
+| --- | --- |
+| Backend `pytest -q --cov=app` | 426 passed, 1 skipped, 95.16% branch-aware |
+| Backend `ruff check` / `ruff format --check` | clean |
+| Dashboard `vitest run --coverage` | 29 passed, 99.21% stmts / 91.97% branches / 100% funcs / lines |
+| Dashboard `next build` | success |
+| Dashboard Playwright against the mock API | 3 passed |
+| `demo-repo` tests / coverage / typecheck | 11 passed, 100% / clean |
+| `npm audit` (dashboard, demo-repo) | 0 vulnerabilities |
+| Phase 9 local smoke | succeeded: 1 verified test, 78.57% -> 100.00%, 2 FakeLLM calls, 1,294 tokens |
+
+The local smoke (`backend/scripts/demo_smoke.py`) is the only end-to-end execution. It uses
+real npm/Vitest and real persistence, but a fake GitHub client, `FakeLLM` and
+`LocalSandboxRunner`. The dashboard screenshots in `docs/screenshots/` were captured from
+the SQLite database it produced, served by FastAPI and a production Next build. They must
+be described as a local FakeLLM demo.
+
+Not verified in this environment:
+
+- Docker container creation, image builds, Compose, and the real-daemon integration test
+  (the test is skipped, never reported as passed).
+- Live GitHub App webhook delivery, installation tokens, tarball download and comment
+  posting.
+- Live Groq or Anthropic calls; adapters use `httpx.MockTransport`.
+- GitHub Actions execution; the workflow parses, but there is no remote and no Docker
+  daemon here. Local equivalents of each job were run individually.
+
+These gaps are called out in the README, `SECURITY.md`, `INTERVIEW_PREP.md` and
+`PROGRESS.md` so no mocked path is presented as production evidence.

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
 
@@ -122,6 +123,18 @@ def test_delivery_id_must_be_unique(database: Database) -> None:
         pass
     else:  # pragma: no cover - failure path is explicit
         raise AssertionError("duplicate delivery was accepted")
+
+
+def test_run_repo_and_head_sha_must_be_unique(database: Database) -> None:
+    with database.session() as session:
+        first = make_delivery("unique-commit-1")
+        first.runs.append(make_run("unique-commit-1"))
+        session.add(first)
+
+    with pytest.raises(IntegrityError), database.session() as session:
+        second = make_delivery("unique-commit-2")
+        second.runs.append(make_run("unique-commit-2"))
+        session.add(second)
 
 
 def test_deleting_run_cascades_children(database: Database) -> None:

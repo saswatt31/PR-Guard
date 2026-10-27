@@ -5,12 +5,15 @@ Both are untrusted. The design assumes a hostile repository and a prompt-injecti
 attempt in the diff, and it refuses to post a test unless the Docker sandbox executed it
 successfully.
 
-> Status: Phase 7. The webhook, worker, run processor, `.prguard.yml`, LLM, generated-test
+> Status: Phase 10. The webhook, worker, run processor, `.prguard.yml`, LLM, generated-test
 > static policy, sandbox controls, PR comment and read-only dashboard API/UI are implemented.
 > Docker is not installed on the build machine, so real-container tests are reported as
 > skipped, never as passed. Live GitHub App, Groq and Anthropic calls are not claimed;
 > processor tests use a fake GitHub client, adapter tests use `httpx.MockTransport`, and the
-> end-to-end pipeline uses `FakeLLM`. Dashboard E2E uses a mock API, not a live backend.
+> end-to-end pipeline uses `FakeLLM`. Dashboard E2E uses a mock API, not a live backend. The
+> Phase 9 local smoke executed real npm/Vitest through `LocalSandboxRunner`, which cannot
+> enforce network isolation and is **not** a security boundary; its success is not Docker
+> evidence.
 
 ## 1. Trust boundaries
 
@@ -32,7 +35,9 @@ successfully.
 - **Body limit:** requests over `MAX_WEBHOOK_BYTES` (10 MB default) are rejected before
   HMAC work.
 - **Idempotency:** a unique `X-GitHub-Delivery` row makes retries no-ops; a unique
-  `(repo_full_name, head_sha)` check prevents duplicate LLM spend for a redelivery.
+  `(repo_full_name, head_sha)` index prevents duplicate LLM spend for a redelivery. A
+  concurrent insert that loses the race is caught via `IntegrityError` and returns the
+  existing run.
 - **Fork policy:** fork PRs are skipped by default (`ALLOW_FORK_PRS=false`). A skipped
   run is visible in the dashboard instead of silently dropping the event.
 - **No public mutation API:** the dashboard API is read-only. There is no endpoint that

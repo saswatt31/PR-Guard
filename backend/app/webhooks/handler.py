@@ -48,6 +48,25 @@ def _duplicate_delivery(db: Database, delivery_id: str) -> WebhookOutcome | None
         )
 
 
+def _duplicate_commit(db: Database, repo_full_name: str, head_sha: str) -> WebhookOutcome | None:
+    """Return the existing run for a repo+commit, if a unique insert raced us."""
+
+    with db.session() as session:
+        existing = session.scalars(
+            select(Run).where(
+                Run.repo_full_name == repo_full_name,
+                Run.head_sha == head_sha,
+            )
+        ).first()
+        if existing is None:
+            return None
+        return WebhookOutcome(
+            status="duplicate_commit",
+            run_id=existing.id,
+            reason="this head commit was already analysed",
+        )
+
+
 def process_event(
     db: Database,
     settings: Settings,
@@ -136,8 +155,12 @@ def process_event(
             session.flush()
             return WebhookOutcome(status="queued", run_id=run.id)
     except IntegrityError:
-        # A concurrent delivery raced us. The unique index is the source of truth.
+        # A concurrent delivery or commit raced us. The unique indexes are the source
+        # of truth; return whichever identity now exists instead of creating a second run.
         duplicate = _duplicate_delivery(db, delivery_id)
+        if duplicate is not None:
+            return duplicate
+        duplicate = _duplicate_commit(db, repo.full_name, pr_event.pull_request.head.sha)
         if duplicate is not None:
             return duplicate
         raise

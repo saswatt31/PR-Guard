@@ -436,3 +436,35 @@ a static mock (misleading), skip screenshots (weaker README).
 must never be presented as a live GitHub installation, a Docker sandbox or a real model
 response. `data/` is gitignored, so the database is reproducible only by rerunning the
 smoke script.
+
+## D036 — Evidence levels are stated explicitly in every document
+**What:** The README, `ARCHITECTURE.md`, `CORE_FUNCTIONS.md`, `INTERVIEW_PREP.md`,
+`SECURITY.md` and screenshot captions use an explicit distinction between **executed
+locally**, **mocked**, and **not verified**. The README has a verification matrix; the
+architecture has an evidence section; the interview guide has a "say this plainly"
+checklist.
+**Why:** A mocked test, a skipped container test and a real npm/Vitest run can all be
+described as "passing" if the language is loose. That is the easiest way to lose credibility
+in a code review or interview. Recording the execution mode next to each number keeps the
+claims calibrated and makes the remaining work unambiguous.
+**Alternatives:** A single green "all tests pass" summary (misleading), omitting the skipped
+Docker test (dishonest), delegating caveats to a footnote (readers miss them).
+**Limitation:** Documentation can drift from code. Phase 10 cross-checked signatures,
+defaults, caps and test names, but future changes must update the matrix and captions; no
+automation currently enforces that consistency.
+
+## D037 — Repo + head SHA idempotency is enforced by a database constraint
+**What:** `runs` has `UniqueConstraint("repo_full_name", "head_sha", name="uq_runs_repo_head")`.
+`process_event` keeps the friendly pre-check that returns `duplicate_commit` without an
+insert. If a concurrent insert loses the race, the handler catches `IntegrityError`, looks
+up the winning delivery or commit and returns that outcome; if neither exists, it re-raises.
+**Why:** A pre-check is not an invariant. Two requests or workers can both observe no row
+and then both insert, spending LLM budget twice. The database must own the dedupe key.
+Returning the winner instead of a 500 also makes GitHub's retry semantics harmless.
+**Alternatives:** In-process locks (single worker only), trusting the pre-check (racy),
+treating `IntegrityError` as a 500 (the run may already exist and the webhook will retry).
+**Limitation:** Dedupe is per repository and head SHA; the same commit in another repository
+is intentionally a separate run. SQLite serialises writers, so the race tests simulate the
+`IntegrityError` rather than opening two real concurrent connections. There is no migration
+tool: `create_all` applies the constraint to new databases only, so an existing SQLite file
+must be recreated (or migrated by hand) to gain it.
