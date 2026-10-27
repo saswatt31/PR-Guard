@@ -576,3 +576,114 @@ write path.
 ## Phase 8 decisions added
 - D032 (standalone demo repository with a deterministic untested-function PR), D033
   (CI matrix with dashboard E2E, demo smoke and image builds).
+
+## Phase 9 - Real local smoke run, dashboard screenshots and full re-verification
+
+**Why this phase exists**
+The pipeline had unit and integration tests, but no single run had exercised the
+webhook-to-database path with a real workspace, real `npm`, and real Vitest. Phase 9 adds a
+repeatable smoke tool and produces the only end-to-end evidence available on this machine,
+where Docker is not installed.
+
+**Local smoke runner**
+- Added `backend/scripts/demo_smoke.py`. It creates a SQLite database, builds a delivery,
+  run and job, copies `demo-repo/` into a temporary staging directory, applies
+  `demo-pr.patch`, packages the result as a GitHub-style tarball, and runs the real
+  `Worker` + `RunProcessor`.
+- `DemoGitHub` serves the diff, tarball and comment call from local fixtures. `FakeLLM`
+  returns one scripted proposal and a review. The sandbox is `LocalSandboxRunner`, which
+  runs real commands in a temporary workspace but is **not** an isolation boundary.
+- The script prints the run id, status, summary, coverage before/after, verified/generated
+  counts, comment URL/length, agent steps, generated tests and sandbox executions. It exits
+  non-zero unless the run succeeds, and it writes `data/demo-comment.md` for inspection.
+- It takes `--database`, so the dashboard can be pointed at the generated database.
+
+**Smoke result actually observed**
+- Run `39fafcce-17dc-4316-b70c-fdf4d43eb436`: status `succeeded`.
+- Two changed files, one changed function, one untested gap (`normalizeScore` in
+  `src/score.ts`), one scripted proposal.
+- Baseline coverage **78.57%**; post-test coverage **100.00%** (+21.43 pp).
+- **1 verified, 0 not verified**: Vitest executed the generated
+  `tests/score.test.ts` in the local runner and it passed.
+- Two LLM calls, 1,294 tokens, one 923-character comment.
+- Six agent steps recorded; workspace removed afterwards.
+- `network_disabled=False` in the stored sandbox execution because the local runner does
+  not claim network isolation. This is deliberately truthful data, not a bug.
+- The GitHub host is fake (`acme/prguard-demo`, head SHA `dddd...`, comment URL on
+  `localhost`), so this proves orchestration, not a live App installation.
+
+**Dashboard screenshots**
+- Started FastAPI against `data/demo.db` on port 8001 and the production Next build on
+  port 3101, then captured:
+  - `docs/screenshots/dashboard-overview.png` - statistics and run table.
+  - `docs/screenshots/run-detail.png` - six steps, coverage delta, the verified test, the
+    FakeLLM review and run metadata.
+- Captions and README text must say this is a local `FakeLLM` demo run, not a Docker
+  sandbox and not a live GitHub/LLM run. The screenshots show real UI rendering real API
+  responses from the real demo database.
+
+**Full re-verification (all commands run on this machine)**
+- Backend: `pytest -q --cov=app` -> **421 passed, 1 skipped, 94.98%**; the only skip is
+  the real-Docker-daemon integration test. `ruff check app tests scripts` clean;
+  `ruff format --check app tests scripts` clean (87 files).
+- Dashboard: `vitest run --coverage` -> **29 passed**, 99.21% statements / 91.97% branches
+  / 100% functions / 100% lines; `next build` succeeded; Playwright against the mock API
+  -> **3 passed**; `npm audit` -> **0 vulnerabilities**.
+- Demo repository: `vitest run --coverage` -> **11 passed**, 100% statements/branches/
+  functions/lines; `tsc --noEmit` clean; `npm audit` -> **0 vulnerabilities**.
+- Docker: still unavailable. No image build, container run, Compose start or
+  `SANDBOX_MODE=docker` execution is claimed.
+- Live services: no GitHub App, Groq or Anthropic credentials were used. No live webhook,
+  installation token, model call or PR comment is claimed.
+- GitHub Actions: still unexecuted (no remote). The workflow and its local equivalents are
+  the only evidence.
+
+**Files to read**
+- `backend/scripts/demo_smoke.py` - the end-to-end local harness.
+- `docs/screenshots/dashboard-overview.png`, `docs/screenshots/run-detail.png` - captured
+  from the real demo database.
+- `backend/app/run_processor.py` - the orchestration path the smoke exercises.
+- `backend/app/sandbox/local.py` - why the local runner is demo-only.
+
+**Interview questions**
+1. What does this smoke test prove that unit tests do not? (It crosses process
+   boundaries inside the app: tarball extraction, config loading, real `npm ci`, real
+   Vitest, Istanbul output parsing, persistence, graph state and comment rendering. Unit
+   tests mock those seams individually.)
+2. Why not present the smoke as a Docker verification? (The local runner executes in the
+   same user session with network access. The sandbox's security properties - namespaces,
+   read-only root, dropped capabilities, resource limits - are absent, so treating a pass
+   here as containment evidence would be false.)
+3. Why does the smoke use `FakeLLM`? (It makes the run deterministic and free, and it lets
+   the test isolate orchestration from model quality. Provider adapters have unit tests
+   with mocked transports; a live call needs credentials and budget approval.)
+4. How would you run this in CI? (Build the sandbox image first, set
+   `SANDBOX_MODE=docker`, inject a throwaway GitHub App or fixtures, run the same script,
+   and assert the stored `network_disabled=True` plus the verified test count. The demo
+   script would need a Docker-backed sandbox factory instead of `LocalSandboxRunner`.)
+5. Why capture screenshots from a real database instead of mock fixtures? (The overview
+   and detail pages then exercise the real FastAPI serialization and SQL queries. The UI
+   proof is stronger; the cost is that the data must be described accurately as a local
+   FakeLLM run.)
+6. What would you check first if the smoke produced zero verified tests? (The sandbox
+   logs and exit code, then the coverage report path, then whether the generated test
+   imports match the patched source. The comment builder must never post unverified
+   content, so zero verified should still be a successful run with an explanatory comment.)
+7. What is the remaining highest-risk untested path? (The Docker sandbox boundary and the
+   live GitHub App flow. Both require infrastructure this environment lacks; the code has
+   tests with mocked clients, but no real perimeter has been exercised.)
+
+**Simplified / mocked**
+- GitHub (diff, tarball, comment) is a local fake; no webhook signature, installation
+  token or API call occurs.
+- The LLM is `FakeLLM` with one scripted proposal, so model quality and provider-specific
+  token accounting are not exercised.
+- The sandbox is `LocalSandboxRunner`; no container, network namespace, read-only mount or
+  resource limit is involved.
+- The dashboard screenshots come from this local run and must be labelled as such.
+
+## Phase 9 decisions added
+- D034 (a checked-in local smoke harness provides end-to-end evidence without Docker, and
+  its output is never described as Docker or live-LLM verification), D035 (dashboard
+  screenshots are captured from the real API and demo database, with explicit local-demo
+  captions).

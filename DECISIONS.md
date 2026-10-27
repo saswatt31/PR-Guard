@@ -400,3 +400,39 @@ stays deterministic by using its checked-in mock API.
 secrets and a GitHub App), skipping image builds (Dockerfile drift goes unnoticed).
 **Limitation:** The workflow has not been executed here: there is no GitHub remote and no
 Docker daemon. Local runs of the individual commands are the only measured evidence.
+
+## D034 — A checked-in smoke harness provides end-to-end evidence without Docker
+**What:** `backend/scripts/demo_smoke.py` runs the real `Worker` and `RunProcessor` against
+`demo-repo/` with a real temporary workspace, real `npm ci` and real Vitest. GitHub is a
+three-method local fake, the model is `FakeLLM`, and the sandbox is `LocalSandboxRunner`
+configured with `sandbox_mode="local"`. The script writes a SQLite database and the
+rendered comment, then exits non-zero unless the run status is `succeeded`.
+**Why:** Unit tests mock each seam, so they cannot catch integration mistakes in tarball
+layout, patch application, config loading, npm invocation, JSON coverage parsing,
+persistence and graph sequencing. A repeatable local harness gives one honest end-to-end
+data point on a machine without Docker, and it doubles as the demo data source for the
+dashboard.
+**Alternatives:** Claiming the mocked tests are end-to-end (false), requiring Docker to
+demo anything (blocks development on this machine), using a hand-built database seed (does
+not execute the pipeline), hitting a live provider (nondeterministic, costs money, needs
+credentials).
+**Limitation:** This is explicitly **not** a security or Docker verification. The local
+runner shares the user session and network; the stored execution truthfully reports
+`network_disabled=False`. It also does not exercise webhook signatures, installation
+tokens, GitHub API calls or provider-specific LLM behaviour. Every document and screenshot
+caption must say "local FakeLLM demo", not "sandboxed" or "live".
+
+## D035 — Screenshots come from the real API and demo database, with explicit captions
+**What:** `docs/screenshots/dashboard-overview.png` and `docs/screenshots/run-detail.png`
+were captured from FastAPI serving `data/demo.db` (the Phase 9 smoke output) and a
+production Next build, not from the Playwright mock API. The README captions identify the
+run as local, scripted and FakeLLM-powered.
+**Why:** The screenshots then demonstrate real SQLAlchemy queries, real Pydantic
+serialization and real Next rendering. The Playwright E2E remains the regression test; the
+screenshots are illustrative evidence.
+**Alternatives:** Capture the mock-API E2E (would show fixture data and prove less), render
+a static mock (misleading), skip screenshots (weaker README).
+**Limitation:** The run's repository, SHAs and comment URL are fixtures. The screenshots
+must never be presented as a live GitHub installation, a Docker sandbox or a real model
+response. `data/` is gitignored, so the database is reproducible only by rerunning the
+smoke script.
