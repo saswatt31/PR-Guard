@@ -301,3 +301,106 @@
 - D018 (provider protocol + FakeLLM), D019 (post-response budget accounting),
   D020 (static generated-test policy), D021 (delimiter neutralization),
   D022 (Vitest-only generation and jsdom UI opt-in), D023 (global fixer rounds).
+
+## Phase 6 — run processor, baseline coverage and verified-only PR comment
+
+**Built**
+- `RunProcessor` (`backend/app/run_processor.py`) now owns the work after the durable
+  worker claims a job: load the run, create a per-run temporary workspace, fetch the PR
+  diff and head tarball with the installation token, extract through the hardened tar
+  reader, load `.prguard.yml`, analyze the diff, run the baseline, invoke the graph,
+  persist results, and post one comment.
+- Baseline coverage runs on the PR head before the graph (unless
+  `run_baseline_coverage: false`): one repository install, then the repository test
+  command with coverage and network disabled. A successful install is passed to the
+  graph so it is not run twice. A failed baseline is recorded as a failed step and does
+  not abort the run; missing/invalid coverage falls back to the existing test-reference
+  heuristic (D024).
+- The graph now records a `steps` trace (`analyze`, `find_gaps`, `write`, `execute`,
+  `fix`, `review`) with status, summary, duration and small structured details. It also
+  returns the gap decisions and can reuse a precomputed diff analysis and baseline
+  install. This is what the dashboard and comment consume.
+- Persistence writes/updates the run counters, config, cost, coverage before/after/delta
+  and summary, then replaces the run's `agent_steps`, `generated_tests`,
+  `sandbox_executions` and `code_reviews` rows. Retrying the same run does not duplicate
+  child rows. Only tests the verifier accepted are stored as `verified`; failed drafts are
+  stored as `rejected` with a capped reason.
+- `comment.py` renders one Markdown comment containing the run marker, coverage and cost
+  summary, collapsible verified test code, unverified names/reasons and capped warnings.
+  Rejected code is never rendered as a snippet. Paths/function names are flattened and
+  backticks replaced so they cannot break the inline-code structure. The body is capped at
+  60,000 characters, with per-test truncation and omission notes.
+- Comments are posted only after persistence, and `comment_id`/`comment_url` are stored.
+  A retry for a run that already has a `comment_id` does not post a second comment (D026).
+  A comment failure leaves the persisted analysis intact and lets the worker mark the run
+  failed; the normal retry path remains available.
+- `create_app` wires the production `RunProcessor` when the worker is enabled, while
+  keeping the worker's processor injectable for tests. Workspace cleanup is unconditional.
+- `.prguard.yml` now validates that `results_file` and `coverage_file` end in `.json`, so a
+  configuration cannot point the cleanup/read paths at arbitrary files.
+
+**Files to read**
+- `backend/app/run_processor.py` — orchestration, baseline, persistence, comment.
+- `backend/app/comment.py` — verified-only rendering and size caps.
+- `backend/app/agents/graph.py` — step instrumentation, initial analysis/install reuse.
+- `backend/app/agents/models.py` — gaps/steps on `PipelineResult`.
+- `backend/app/config/repo.py` — baseline toggle and `.json` output validation.
+- `backend/app/main.py` — default processor wiring.
+- `backend/tests/test_run_processor.py` — fake GitHub/sandbox end-to-end flows.
+- `backend/tests/test_comment.py` — formatting and truncation.
+- `backend/tests/test_agent_graph.py` — step trace and reuse tests.
+
+**Interview questions**
+1. Why persist before posting the comment? (A GitHub 403/502 must not discard analysis
+   the sandbox already produced; the database is the durable product. The stored comment
+   id makes the normal retry path idempotent. The crash window between GitHub accepting
+   the comment and the local id commit is documented as a residual risk.)
+2. Why run baseline coverage at the PR head? (It measures whether the PR's own tests
+   actually execute the changed functions; name matching is weaker. Running at the base
+   commit would miss tests introduced by the PR and functions that do not exist there.)
+3. Why is a failing baseline not fatal? (A repository can be red for unrelated reasons;
+   generated tests can still be verified independently. We record the failure instead of
+   pretending coverage was measured. This is a deliberate availability trade-off.)
+4. Why build steps in the graph rather than reconstruct them later? (Durations, retry
+   rounds and verification counts are known only while the node runs. Small structured
+   details also avoid persisting prompts, source or secrets. The dashboard gets a stable
+   trace without replaying the pipeline.)
+5. Why render only verified code? (A reader could otherwise copy an unverified snippet.
+   The comment is evidence, not a suggestion box. Rejected items still appear by name and
+   reason so the gap is visible.)
+6. What is still not idempotent? (The comment API call and the local id update are not one
+   transaction. A crash after GitHub accepts the comment can duplicate it on retry. An
+   update/list-comments API would close that window.)
+
+**Simplified / mocked**
+- Docker is still unavailable on this machine. Processor tests use a fake sandbox and
+  assert orchestration/persistence, not container isolation. The real-Docker test remains
+  skipped; no Docker execution is claimed.
+- The processor tests use a fake GitHub client (no live App JWT/installation token) and
+  the pipeline uses `FakeLLM` (no Groq/Anthropic request). Both remain verification gaps,
+  not production claims.
+- The local smoke test used `LocalSandboxRunner`, not Docker. That runner explicitly
+  reports `isolation="local (NOT a security boundary)"`; it validates npm/Vitest wiring
+  only.
+- Baseline sandbox output is summarized in the `baseline` step but is not persisted as a
+  `sandbox_executions` row; the generated-test run is. Full baseline logs are not exposed
+  in the dashboard.
+- The processor stores one comment per run. There is no comment update/list endpoint and
+  no human-approval/edit step yet.
+
+**Measured this phase**
+- Backend: **413 passed, 0 failed, 1 skipped** (real-Docker test; daemon unavailable).
+  Coverage **94.90%** (statements+branches over `backend/app`, Python 3.12.1 locally; CI
+  targets 3.11). `ruff check` and `ruff format --check` clean.
+- The added run-processor and comment modules are part of that total; the processor tests
+  cover full fake-GitHub/fake-sandbox flows, retry cleanup, comment failure, baseline
+  variants, no-gap runs and config failure.
+- Local-mode smoke with the actual Node/npm/Vitest toolchain (no Docker): baseline
+  coverage `0.00%` → generated test verified at `100.00%`, six persisted steps, one PR
+  comment, workspace removed. This is evidence for the local runner and orchestration,
+  not for the Docker security boundary. A direct processor call left the run `queued`
+  because the worker owns run/job status transitions; worker tests assert `succeeded`.
+
+## Phase 6 decisions added
+- D024 (best-effort baseline at PR head), D025 (injectable processor and temporary
+  workspace), D026 (persist before comment, one verified-only comment).

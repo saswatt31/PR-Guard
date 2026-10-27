@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.db import Database
 from app.queue.worker import RunProcessor, Worker
+from app.run_processor import RunProcessor as GitHubRunProcessor
 from app.settings import Settings, get_settings
 from app.webhooks.routes import router as webhook_router
 
@@ -24,6 +25,8 @@ def create_app(
     db = database or Database(cfg.database_url)
     if cfg.app_env == "production" and cfg.github_webhook_secret in {"", "change-me"}:
         raise RuntimeError("GITHUB_WEBHOOK_SECRET must be set in production")
+    if processor is None and cfg.worker_enabled:
+        processor = GitHubRunProcessor(db, cfg)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -44,6 +47,7 @@ def create_app(
     )
     app.state.settings = cfg
     app.state.db = db
+    app.state.processor = processor
     app.state.worker = None
     app.include_router(webhook_router)
 

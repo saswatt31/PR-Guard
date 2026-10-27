@@ -5,11 +5,12 @@ Both are untrusted. The design assumes a hostile repository and a prompt-injecti
 attempt in the diff, and it refuses to post a test unless the Docker sandbox executed it
 successfully.
 
-> Status: Phase 5. The webhook, `.prguard.yml`, LLM, generated-test static policy and
-> sandbox controls described below are implemented. Docker is not installed on the build
-> machine, so real-container tests are reported as skipped, never as passed. Live
-> Groq/Anthropic calls are not claimed; adapter tests use `httpx.MockTransport` and the
-> end-to-end pipeline uses `FakeLLM`.
+> Status: Phase 6. The webhook, worker, run processor, `.prguard.yml`, LLM, generated-test
+> static policy, sandbox controls and PR comment are implemented. Docker is not installed
+> on the build machine, so real-container tests are reported as skipped, never as passed.
+> Live GitHub App, Groq and Anthropic calls are not claimed; processor tests use a fake
+> GitHub client, adapter tests use `httpx.MockTransport`, and the end-to-end pipeline uses
+> `FakeLLM`.
 
 ## 1. Trust boundaries
 
@@ -80,7 +81,8 @@ install phase; test execution never receives the network. The image is built fro
 The repository config is read from the PR head and validated as untrusted input:
 
 - maximum 64 KB, YAML mapping only, unknown keys ignored, schema bounds on test count,
-  fix attempts and LLM caps;
+  fix attempts and LLM caps; `run_baseline_coverage` is a boolean and cannot disable the
+  sandbox or its network policy;
 - commands are argv lists parsed without a shell, validated through the sandbox
   executable allow-list; output/results paths must stay inside the repository;
 - enabled path globs are bounded (50 patterns, 200 chars each) and reject absolute or
@@ -100,6 +102,31 @@ Generated test proposals are additionally checked before they are written:
 These checks are deterministic feedback, not the security boundary. Obfuscated code can
 pass a syntactic policy; the container, network disablement, limits and cleanup are what
 contain it.
+
+### Run processor and comment
+
+- The processor downloads only the PR head tarball, extracts it through the hardened
+  archive reader, and keeps the extracted repository in a fresh temporary directory. The
+  directory is removed in a `finally` block even when GitHub, the sandbox or the LLM
+  fails.
+- `.prguard.yml` is read from that head workspace and persisted as public config. Invalid
+  config aborts before any sandbox command; the worker records the error and no comment is
+  posted.
+- The baseline install/test run uses the same sandbox backend, argv validation and network
+  policy as the generated-test run. A green baseline install is reused; generated tests
+  still run with `network_disabled=True`. Baseline output is untrusted and is summarized,
+  not trusted.
+- The comment contains only verified test content in fenced blocks, plus names/reasons for
+  unverified drafts. Reasons and warnings are flattened, length-capped and stripped of
+  NULs. Paths/function names in inline code replace backticks so a crafted name cannot
+  break the Markdown structure.
+- Comment bodies are capped at 60,000 characters (below GitHub's limit). Oversized tests
+  are truncated or omitted with a visible note; full content remains in the run record.
+- Results are persisted before the comment is posted. The run stores the comment id; a
+  normal retry with an existing id does not post again. A crash between GitHub accepting
+  the comment and storing the id can duplicate the comment on retry (D026).
+- The processor never passes an installation token, provider key or database URL to the
+  sandbox or the LLM. GitHub calls happen in the trusted process.
 
 ### LLM context and budget
 
@@ -160,8 +187,16 @@ key. GitHub API calls happen in the trusted process, outside the sandbox.
 - The writer generates Vitest tests only. Playwright specs are not generated for target
   repositories; Playwright is used for this project's dashboard E2E suite. UI functions
   receive jsdom tests only when `include_ui_tests: true`.
-- Live LLM provider and GitHub App calls were not available in this build. Tests mock
-  HTTP; this is a verification gap, not a claim that the adapters are proven in
-  production.
+- The baseline test command executes the repository's own suite before generation. It is
+  inside the same sandbox, but a malicious baseline can consume the full install/test
+  budget. Baseline coverage is best-effort; a failed baseline is reported, not hidden.
+- A crash between GitHub accepting the comment and storing `runs.comment_id` can duplicate
+  the comment on a retry. There is no comment listing/update endpoint in this build.
+- Generated test code is placed in fenced code blocks, which limits Markdown structure
+  injection. Unverified reasons/warnings are plain text and length-capped but may still
+  contain attacker-chosen prose from assertion errors.
+- Live LLM provider and GitHub App calls were not available in this build. Processor
+  tests use a fake GitHub client, and adapter tests mock HTTP; this is a verification gap,
+  not a claim that the adapters are proven in production.
 - Tests in this repository that require a live Docker daemon are marked `docker` and
   skipped when the daemon is unavailable.

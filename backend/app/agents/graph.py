@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -53,6 +54,7 @@ class AgentState(TypedDict, total=False):
     coverage_after: CoverageReport | None
     review: str | None
     errors: list[str]
+    steps: list[dict[str, Any]]
 
 
 @dataclass
@@ -64,6 +66,8 @@ class AgentDependencies:
     repo_root: Path
     coverage_before: CoverageReport | None = None
     run_id: str = ""
+    initial_analysis: DiffAnalysis | None = None
+    dependencies_installed: bool = False
 
 
 def build_agent_graph(deps: AgentDependencies):
@@ -97,13 +101,14 @@ async def run_agent_pipeline(deps: AgentDependencies, diff_text: str) -> Pipelin
     initial: AgentState = {
         "diff_text": diff_text,
         "attempts": 0,
-        "installed": False,
+        "installed": deps.dependencies_installed,
         "sandbox_results": [],
         "errors": [],
         "drafts": [],
         "failed": [],
         "verified": [],
         "rejected": [],
+        "steps": [],
     }
     final = await graph.ainvoke(initial)
     failed = list(final.get("failed") or [])
@@ -133,6 +138,7 @@ async def run_agent_pipeline(deps: AgentDependencies, diff_text: str) -> Pipelin
         analysis=analysis,
         verified=_dedupe(final.get("verified") or []),
         rejected=rejected,
+        gaps=list(final.get("gaps") or []),
         errors=list(final.get("errors") or []),
         review=final.get("review"),
         coverage_before=deps.coverage_before,
@@ -140,6 +146,7 @@ async def run_agent_pipeline(deps: AgentDependencies, diff_text: str) -> Pipelin
         coverage_delta=delta,
         cost=deps.llm.summary.to_dict(),
         sandbox_results=list(final.get("sandbox_results") or []),
+        steps=list(final.get("steps") or []),
         attempts=int(final.get("attempts") or 0),
     )
 
@@ -161,12 +168,51 @@ def _add_error(state: AgentState, message: str) -> list[str]:
     return errors
 
 
+def _step(
+    node: str,
+    started: float,
+    *,
+    status: str = "succeeded",
+    summary: str = "",
+    **detail: Any,
+) -> dict[str, Any]:
+    return {
+        "node": node,
+        "status": status,
+        "summary": summary[:2000],
+        "detail": detail,
+        "duration_ms": max(0, int((time.perf_counter() - started) * 1000)),
+    }
+
+
+def _with_step(state: AgentState, step: dict[str, Any]) -> list[dict[str, Any]]:
+    return [*(state.get("steps") or []), step]
+
+
 def _analyze_node(deps: AgentDependencies, state: AgentState) -> dict[str, Any]:
-    analysis = analyze_diff(state.get("diff_text", ""), deps.repo_root)
-    return {"analysis": analysis}
+    started = time.perf_counter()
+    analysis = deps.initial_analysis or analyze_diff(state.get("diff_text", ""), deps.repo_root)
+    return {
+        "analysis": analysis,
+        "steps": _with_step(
+            state,
+            _step(
+                "analyze",
+                started,
+                summary=(
+                    f"parsed {analysis.changed_file_count} changed file(s), "
+                    f"{len(analysis.functions)} function(s)"
+                ),
+                files=analysis.changed_file_count,
+                functions=len(analysis.functions),
+                errors=analysis.errors[:10],
+            ),
+        ),
+    }
 
 
 def _gaps_node(deps: AgentDependencies, state: AgentState) -> dict[str, Any]:
+    started = time.perf_counter()
     analysis = state["analysis"]
     result = find_gaps(
         analysis.functions,
@@ -192,14 +238,36 @@ def _gaps_node(deps: AgentDependencies, state: AgentState) -> dict[str, Any]:
             f"skipped {len(ui_gaps)} UI function(s); set include_ui_tests: true "
             "to generate jsdom tests"
         )
+    unlimited = len(gaps)
     if len(gaps) > deps.config.max_tests:
         errors.append(f"limited test generation to {deps.config.max_tests} of {len(gaps)} gaps")
         gaps = gaps[: deps.config.max_tests]
-    return {"gaps": gaps, "errors": errors}
+    return {
+        "gaps": gaps,
+        "errors": errors,
+        "steps": _with_step(
+            state,
+            _step(
+                "find_gaps",
+                started,
+                summary=(
+                    f"{len(gaps)} gap(s), {len(result.covered)} covered, "
+                    f"{len(result.skipped)} skipped"
+                ),
+                gaps=len(gaps),
+                gaps_before_limit=unlimited,
+                covered=len(result.covered),
+                skipped=len(result.skipped),
+                ui_skipped=len(ui_gaps),
+            ),
+        ),
+    }
 
 
 async def _write_node(deps: AgentDependencies, state: AgentState) -> dict[str, Any]:
+    started = time.perf_counter()
     drafts = list(state.get("drafts") or [])
+    initial_drafts = len(drafts)
     errors = list(state.get("errors") or [])
     for gap in state.get("gaps") or []:
         function = gap.function
@@ -245,17 +313,44 @@ async def _write_node(deps: AgentDependencies, state: AgentState) -> dict[str, A
             drafts.append(proposal)
         except (ProposalParseError, UnsafeTestError, OSError) as exc:
             errors.append(f"writer output rejected for {function.qualified_name}: {exc}")
-    return {"drafts": drafts, "errors": errors}
+    wrote = len(drafts) - initial_drafts
+    gaps = len(state.get("gaps") or [])
+    return {
+        "drafts": drafts,
+        "errors": errors,
+        "steps": _with_step(
+            state,
+            _step(
+                "write",
+                started,
+                status="failed" if gaps and wrote == 0 else "succeeded",
+                summary=f"wrote {wrote}/{gaps} draft(s)",
+                drafts=wrote,
+                gaps=gaps,
+                errors=max(0, len(errors) - (len(state.get("errors") or []))),
+            ),
+        ),
+    }
 
 
 async def _execute_node(deps: AgentDependencies, state: AgentState) -> dict[str, Any]:
+    started = time.perf_counter()
     drafts = list(state.get("drafts") or [])
     errors = list(state.get("errors") or [])
     sandbox_results = list(state.get("sandbox_results") or [])
     if not drafts:
-        return {"failed": [], "verified": [], "errors": errors}
+        return {
+            "failed": [],
+            "verified": [],
+            "errors": errors,
+            "steps": _with_step(
+                state,
+                _step("execute", started, status="skipped", summary="no drafts to execute"),
+            ),
+        }
 
     installed = bool(state.get("installed"))
+    install: SandboxResult | None = None
     if not installed:
         install = await _run_sandbox(
             deps,
@@ -276,6 +371,19 @@ async def _execute_node(deps: AgentDependencies, state: AgentState) -> dict[str,
                 ],
                 "sandbox_results": sandbox_results,
                 "errors": _add_error(state, f"sandbox install failed: {reason}"),
+                "steps": _with_step(
+                    state,
+                    _step(
+                        "execute",
+                        started,
+                        status="failed",
+                        summary=f"install failed; {len(drafts)} draft(s) rejected",
+                        install=install.status,
+                        drafts=len(drafts),
+                        verified=0,
+                        failed=len(drafts),
+                    ),
+                ),
             }
         installed = True
 
@@ -343,6 +451,23 @@ async def _execute_node(deps: AgentDependencies, state: AgentState) -> dict[str,
         "coverage_after": coverage_after,
         "sandbox_results": sandbox_results,
         "errors": errors,
+        "steps": _with_step(
+            state,
+            _step(
+                "execute",
+                started,
+                status=("failed" if test_result.status in {"timeout", "error"} else "succeeded"),
+                summary=f"verified {len(verified)}, rejected {len(failed)}",
+                install="reused" if install is None else install.status,
+                test=test_result.status,
+                drafts=len(drafts),
+                verified=len(verified),
+                failed=len(failed),
+                report_exists=report_exists,
+                coverage_pct=coverage_after.line_pct if coverage_after else None,
+                round=int(state.get("attempts") or 0) + 1,
+            ),
+        ),
     }
 
 
@@ -357,9 +482,15 @@ def _route_after_execute(deps: AgentDependencies, state: AgentState) -> str:
 
 
 async def _fix_node(deps: AgentDependencies, state: AgentState) -> dict[str, Any]:
+    started = time.perf_counter()
     failed = list(state.get("failed") or [])
     if not failed:
-        return {}
+        return {
+            "steps": _with_step(
+                state,
+                _step("fix", started, status="skipped", summary="no failed drafts"),
+            )
+        }
     analysis = state["analysis"]
     drafts = list(state.get("drafts") or [])
     by_path = {draft.file_path: draft for draft in drafts}
@@ -401,17 +532,37 @@ async def _fix_node(deps: AgentDependencies, state: AgentState) -> dict[str, Any
         except (LLMError, ProposalParseError, UnsafeTestError, OSError) as exc:
             draft.last_error = f"fixer output rejected: {exc}"[:4000]
     updated = [by_path[draft.file_path] for draft in drafts]
+    rewritten = sum(1 for draft in failed if by_path.get(draft.file_path) is not draft)
     return {
         "drafts": updated,
         "failed": [],
         "attempts": int(state.get("attempts") or 0) + 1,
         "errors": errors,
+        "steps": _with_step(
+            state,
+            _step(
+                "fix",
+                started,
+                status="succeeded" if rewritten else "failed",
+                summary=f"rewrote {rewritten}/{len(failed)} failed draft(s)",
+                rewritten=rewritten,
+                failed=len(failed),
+                round=int(state.get("attempts") or 0) + 1,
+            ),
+        ),
     }
 
 
 async def _review_node(deps: AgentDependencies, state: AgentState) -> dict[str, Any]:
+    started = time.perf_counter()
     if not deps.config.review_code:
-        return {"review": None}
+        return {
+            "review": None,
+            "steps": _with_step(
+                state,
+                _step("review", started, status="skipped", summary="review disabled"),
+            ),
+        }
     verified = list(state.get("verified") or [])
     failed = list(state.get("failed") or [])
     prompt = build_review_prompt(
@@ -422,10 +573,30 @@ async def _review_node(deps: AgentDependencies, state: AgentState) -> dict[str, 
     try:
         response = await deps.llm.complete(prompt, max_tokens=600)
     except BudgetExceeded as exc:
-        return {"review": None, "errors": _add_error(state, str(exc))}
+        return {
+            "review": None,
+            "errors": _add_error(state, str(exc)),
+            "steps": _with_step(
+                state,
+                _step("review", started, status="failed", summary="review budget exceeded"),
+            ),
+        }
     except LLMError as exc:
-        return {"review": None, "errors": _add_error(state, f"review failed: {exc}")}
-    return {"review": response.text.strip()[:8000]}
+        return {
+            "review": None,
+            "errors": _add_error(state, f"review failed: {exc}"),
+            "steps": _with_step(
+                state,
+                _step("review", started, status="failed", summary="review LLM error"),
+            ),
+        }
+    return {
+        "review": response.text.strip()[:8000],
+        "steps": _with_step(
+            state,
+            _step("review", started, summary="review completed", chars=len(response.text)),
+        ),
+    }
 
 
 async def _run_sandbox(

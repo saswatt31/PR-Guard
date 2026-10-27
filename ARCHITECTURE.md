@@ -1,9 +1,9 @@
 # Architecture
 
-> Status after Phase 5. The graph, LLM/config layer and sandbox are implemented; the run
-> processor that downloads a PR, persists results and posts the comment is Phase 6.
-> Data-flow details and failure modes are expanded in Phase 10; every table and field
-> below already reflects the implemented SQLAlchemy models.
+> Status after Phase 6. The webhook, worker, run processor, agent graph, LLM/config layer
+> and sandbox are implemented. The dashboard and polished demo are Phase 7–8. Data-flow
+> details and failure modes are expanded in Phase 10; every table and field below already
+> reflects the implemented SQLAlchemy models.
 
 ## 1. System view
 
@@ -69,15 +69,37 @@ run processor persists the result and posts the PR comment outside this graph.
 - UI functions are skipped unless `include_ui_tests` is true; when enabled they receive
   Vitest/jsdom tests. Playwright generation is not part of this writer (D022).
 
+### Run processor
+
+`RunProcessor` (`backend/app/run_processor.py`) owns one job after the worker claims it:
+
+1. Load the run row and create a fresh temporary workspace outside the repository.
+2. Fetch the PR diff and head tarball with the installation token; extract with path,
+   traversal, link, size and entry-count checks.
+3. Load `.prguard.yml` from the head and persist the public config on the run.
+4. Analyze the diff and, unless disabled, run install plus the repository's own test
+   command with coverage as the baseline (network policy is the same as the graph).
+5. Build an `AgentDependencies` with the baseline coverage and hand control to the graph.
+   A successful baseline install is reused by the graph; a failed baseline is reported
+   but does not abort the run.
+6. Persist counters, cost, coverage, per-node steps, generated tests, sandbox executions
+   and the review. Rows are replaced if the same run is retried.
+7. Render and post one PR comment, then store its id/url. A run that already has a
+   `comment_id` is not commented again.
+
+The processor accepts an injected GitHub client, sandbox, workspace root, LLM factory and
+pipeline runner. Tests use fakes for all five; production uses `GitHubClient`,
+`build_sandbox`, `build_budgeted_llm` and `run_agent_pipeline`. Workspace cleanup is
+unconditional in a `finally` block.
+
 ## 3. Data flow for one pull request
 
 1. GitHub sends `pull_request` (`opened` or `synchronize`) with an HMAC signature.
 2. The webhook route reads the **raw body**, verifies HMAC-SHA-256 in constant time,
    checks the delivery id, inserts `deliveries`, creates `runs` + `jobs`, returns 202.
    A duplicate delivery is a no-op.
-3. The Phase 6 run processor claims the job, downloads the PR head tarball with an
-   installation token, and safely extracts it (path traversal and size checks). The
-   download/extract primitives already exist; the worker is not wired to them yet.
+3. The run processor claims the job, downloads the PR head tarball with an installation
+   token, and safely extracts it (path traversal, link, size and entry-count checks).
 4. Diff Analyzer parses changed files and unified hunks, extracts added/changed
    TypeScript functions with their signatures and line ranges.
 5. Gap Finder applies `.prguard.yml` path filters, then uses baseline Istanbul coverage
@@ -91,9 +113,9 @@ run processor persists the result and posts the PR comment outside this graph.
    memory/CPU/PID limits, timeout). Output is parsed into per-test results and coverage.
 8. Failures go to the Fixer with the failing test, source, and truncated error. After
    `max_fix_attempts` rounds the test is marked `rejected` and reported as unverified.
-9. The review node produces Markdown commentary. Phase 6 adds the run processor that
-   persists results and posts one comment containing verified tests only, coverage delta,
-   costs and unverified functions. The dashboard reads the same persisted state.
+9. The review node produces Markdown commentary. The run processor persists results and
+   posts one comment containing verified tests only, coverage delta, costs and unverified
+   functions. The dashboard reads the same persisted state.
 
 ## 4. Sandbox execution boundary
 
@@ -210,7 +232,7 @@ SQLAlchemy exposes Python dicts.
 | `file_path` | string | Path written in sandbox. |
 | `function_name` | string | Function under test. |
 | `source_file` | string | Source under test. |
-| `framework` | string | `vitest` or `playwright`. |
+| `framework` | string | `vitest`; `playwright` is reserved for a future writer. |
 | `content` | text | Full generated file. |
 | `status` | string | `proposed`, `verified`, `rejected`. |
 | `attempts` | int | Writer+fixer attempts. |
@@ -254,12 +276,19 @@ SQLAlchemy exposes Python dicts.
 - **Invalid `.prguard.yml`:** the run fails with a config error before any command or
   generated test is executed; the default config is not silently substituted.
 - **Dependency install fails:** every draft is rejected with the install failure, the
-  test phase is not run, and no test is posted.
+  test phase is not run, and the comment lists them as unverified.
+- **Baseline tests fail or produce no coverage:** the run continues. Istanbul coverage is
+  used if present; otherwise the gap finder falls back to test-file references. The
+  baseline step records the failure instead of pretending coverage was measured.
 - **Vitest report is missing:** verification falls back to the sandbox exit status only
   when no report file exists; a present report that omits a draft rejects that draft.
 - **Coverage reports zero executions:** an otherwise passing test is rejected, because
   the target function did not actually run.
-- **Sandbox daemon unavailable:** run fails cleanly; no unverified tests are posted.
+- **Sandbox daemon unavailable:** run fails cleanly and no comment is posted. Results
+  already persisted by the processor remain visible for diagnosis.
+- **Comment posting fails:** results remain persisted, the run is marked failed, and no
+  `comment_id` is stored, so a retry may post. A crash after GitHub accepts the comment
+  but before the id is stored is a residual duplicate-comment window (D026).
 - **Test never passes:** dropped after the attempt cap and listed as "could not verify".
 - **Worker crashes mid-run:** `jobs.status=processing` + stale `started_at` is reclaimed
   by the worker on startup (Phase 2).

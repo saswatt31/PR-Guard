@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.coverage.gap import GapDecision
 from app.coverage.istanbul import CoverageReport
 from app.diff.models import DiffAnalysis, FunctionInfo
 
@@ -44,6 +45,7 @@ class PipelineResult:
     analysis: DiffAnalysis
     verified: list[TestProposal] = field(default_factory=list)
     rejected: list[RejectedTest] = field(default_factory=list)
+    gaps: list[GapDecision] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     review: str | None = None
     coverage_before: CoverageReport | None = None
@@ -51,6 +53,7 @@ class PipelineResult:
     coverage_delta: float | None = None
     cost: dict[str, int | float] = field(default_factory=dict)
     sandbox_results: list[dict[str, Any]] = field(default_factory=list)
+    steps: list[dict[str, Any]] = field(default_factory=list)
     attempts: int = 0
 
     @property

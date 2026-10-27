@@ -247,3 +247,54 @@ per-test state machine in the graph.
 spend), one attempt per function and immediate rejection (weaker success rate), unlimited
 fixing (unbounded cost).
 **Limitation:** One pathological test can consume the same rounds as several tests.
+
+## D024 — Baseline coverage runs on the PR head and is best-effort
+**What:** Unless `.prguard.yml` sets `run_baseline_coverage: false`, the processor runs
+the repository install command once, then its own test command with coverage, before the
+agent graph. A successful install is reused by the graph; a failed baseline is recorded
+in a step but does not abort the run. Missing or invalid coverage falls back to the
+existing test-reference heuristic.
+**Why:** Running on the head shows which changed functions the repository's existing
+tests actually execute, which is stronger evidence than name matching. Reusing the
+install avoids paying for two `npm ci` runs. Treating baseline failure as fatal would
+block runs for repositories with a flaky or currently failing suite, even though the
+generated tests can still be verified in isolation.
+**Alternatives:** Skip baseline entirely (cheaper but weaker gap detection), require a
+green baseline (accurate but brittle), run baseline at the base commit (changed functions
+may not exist there and the PR's own tests would be ignored), install twice (simpler but
+slow and can double network use).
+**Limitation:** The baseline test command executes untrusted repository tests before
+generated tests. It has the same sandbox controls, but a malicious baseline can consume
+the full time/memory budget. Baseline output is not persisted as a sandbox row; it is
+summarized in the `baseline` agent step.
+
+## D025 — The processor takes injectable collaborators and one temporary workspace
+**What:** `RunProcessor` receives the database, settings, GitHub client, sandbox,
+workspace root, LLM factory and pipeline runner. Production wires the real implementations
+in `create_app`; tests use fakes and a temporary directory. The workspace is removed in a
+`finally` block.
+**Why:** The orchestration has many external boundaries. Injecting them makes the full
+webhook-to-comment path testable without Docker, network, provider keys or an installation
+token, while keeping one production path. A per-run temporary directory avoids collisions
+between concurrent workers and keeps repository content out of the application tree.
+**Alternatives:** Monkeypatching module globals (fragile, leaks state between tests),
+running everything in the repository directory (collisions and accidental commits),
+constructing clients inside each helper (hard to substitute).
+**Limitation:** A remote Docker daemon cannot see a local temp directory; the documented
+deployment needs a volume copy or a shared workspace. Local mode is not a boundary.
+
+## D026 — Comments are rendered from verified results and posted after persistence
+**What:** One Markdown comment contains a run marker, coverage/cost summary, verified test
+code in collapsible fences, unverified function names/reasons and capped warnings. It is
+capped at 60,000 characters; oversized test content is truncated or omitted with a note.
+Results are persisted before posting; `comment_id`/`comment_url` are stored afterwards.
+An existing `comment_id` suppresses a second comment.
+**Why:** Posting after persistence means a GitHub failure does not throw away analysis.
+The marker and stored id make the normal retry path idempotent, and the size cap stays
+under GitHub's limit. Only verified code is rendered as code, so a rejected proposal
+cannot be mistaken for a posted test.
+**Alternatives:** Post first then persist (loses results on a database error), one comment
+per test (noisy and harder to update), inline review comments (different API and diff
+anchors), omit code content (users must open the dashboard to inspect the test).
+**Limitation:** A crash between GitHub accepting the comment and the local `comment_id`
+commit can produce a duplicate on retry. There is no comment listing/update endpoint yet.

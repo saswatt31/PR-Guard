@@ -53,6 +53,7 @@ class RepoConfig(BaseModel):
     review_code: bool = True
     post_comment: bool = True
     sandbox_install_network: bool = True
+    run_baseline_coverage: bool = True
     max_llm_calls: int | None = Field(default=None, ge=1, le=100)
     max_total_tokens: int | None = Field(default=None, ge=1000, le=2_000_000)
     max_cost_usd: float | None = Field(default=None, ge=0, le=100)
@@ -102,7 +103,10 @@ class RepoConfig(BaseModel):
     def _validate_output_path(cls, value: Any, info: Any) -> str:
         if not isinstance(value, str):
             raise ValueError(f"{info.field_name} must be a string")
-        return _safe_relative(value, info.field_name)
+        relative = _safe_relative(value, info.field_name)
+        if not relative.lower().endswith(".json"):
+            raise ValueError(f"{info.field_name} must end in .json")
+        return relative
 
     def to_public_dict(self) -> dict[str, Any]:
         data = self.model_dump()

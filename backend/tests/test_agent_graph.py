@@ -16,6 +16,7 @@ from app.agents.graph import (
 from app.agents.models import TestProposal as Proposal
 from app.config.repo import RepoConfig
 from app.coverage.istanbul import CoverageReport
+from app.diff.analyzer import analyze_diff
 from app.llm.base import LLMError
 from app.llm.budget import BudgetedLLM
 from app.llm.fake import FakeLLM
@@ -336,6 +337,16 @@ async def test_pipeline_verifies_generated_test_and_tracks_coverage(
     assert result.coverage_delta == 10.0
     assert result.review is not None and "FakeLLM review" in result.review
     assert result.cost["calls"] == 2
+    assert [step["node"] for step in result.steps] == [
+        "analyze",
+        "find_gaps",
+        "write",
+        "execute",
+        "review",
+    ]
+    assert all(step["status"] == "succeeded" for step in result.steps)
+    assert result.steps[0]["detail"]["functions"] == 1
+    assert len(result.gaps) == 1
     assert [call["phase"] for call in sandbox.calls] == ["install", "test"]
     assert sandbox.calls[0]["network_disabled"] is False
     assert sandbox.calls[1]["network_disabled"] is True
@@ -344,6 +355,23 @@ async def test_pipeline_verifies_generated_test_and_tracks_coverage(
     assert sandbox.calls[1]["timeout_seconds"] == settings.sandbox_timeout_seconds
     assert len(result.sandbox_results) == 2
     assert result.sandbox_results[0]["phase"] == "install"
+
+
+async def test_pipeline_reuses_precomputed_analysis_and_baseline_install(
+    tmp_path: Path, settings: Settings
+) -> None:
+    write(tmp_path, "src/math.ts", MATH)
+    analysis = analyze_diff(DIFF, tmp_path)
+    sandbox = FakeSandbox([passing_outcome()])
+    deps = dependencies(tmp_path, settings, sandbox)
+    deps.initial_analysis = analysis
+    deps.dependencies_installed = True
+
+    result = await run_agent_pipeline(deps, DIFF)
+
+    assert [call["phase"] for call in sandbox.calls] == ["test"]
+    assert result.steps[0]["detail"]["functions"] == 1
+    assert result.verified_count == 1
 
 
 async def test_pipeline_reviews_without_writing_when_no_gaps(
@@ -439,6 +467,16 @@ async def test_fixer_repairs_a_failing_test_and_installs_once(
     assert [call["phase"] for call in sandbox.calls] == ["install", "test", "test"]
     assert result.cost["calls"] == 3
     assert result.review == "Reviewed by the fake model."
+    assert [step["node"] for step in result.steps] == [
+        "analyze",
+        "find_gaps",
+        "write",
+        "execute",
+        "fix",
+        "execute",
+        "review",
+    ]
+    assert result.steps[4]["status"] == "succeeded"
 
 
 async def test_pipeline_stops_after_max_fix_attempts(tmp_path: Path, settings: Settings) -> None:

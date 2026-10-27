@@ -202,6 +202,8 @@ def test_windows_cmd_executable_is_normalized(tmp_path: Path) -> None:
         ("coverage_file", "..\\\\coverage.json"),
         ("coverage_file", ""),
         ("coverage_file", 12),
+        ("results_file", "vitest-results.txt"),
+        ("coverage_file", "coverage/index.html"),
     ],
 )
 def test_unsafe_output_paths_are_rejected(tmp_path: Path, field: str, value: object) -> None:
