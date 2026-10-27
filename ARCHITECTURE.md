@@ -73,7 +73,38 @@ edges enforce the retry cap; the loop counter lives in state and is also persist
 9. Reporter posts one comment containing verified tests only, coverage delta, costs and
    unverified functions. The dashboard reads the same persisted state.
 
-## 4. Tech stack and why
+## 4. Sandbox execution boundary
+
+`DockerSandboxRunner` is the only backend treated as a security boundary. It receives a
+workspace plus an argv list and returns a typed `SandboxResult`; it never accepts a
+shell string and never forwards the host environment.
+
+| Control | Docker request |
+| --- | --- |
+| Non-root | `user="10001:10001"` |
+| Immutable root filesystem | `read_only=True`; workspace is the only rw bind mount |
+| Network | test phase `network_disabled=True`, enforced in code; install phase may opt in |
+| Capabilities | `cap_drop=["ALL"]`, `security_opt=["no-new-privileges:true"]` |
+| Resource limits | memory, `nano_cpus`, `pids_limit`, 64 MB `/dev/shm` |
+| Temporary files | `/tmp` is a `rw,noexec,nosuid,size=256m` tmpfs |
+| Timeout | SDK wait timeout; on expiry `kill()` then unconditional removal |
+| Secrets | fixed environment baseline; secret-looking/arbitrary names rejected |
+
+The image is `backend/sandbox/Dockerfile` (`prguard-sandbox:node20`), built from
+`node:20-bookworm-slim` with uid/gid 10001. The runner chmods the temporary workspace so
+the non-root sandbox user can install `node_modules` and write coverage output. Because
+the workspace is a bind mount, the path must be visible to the Docker daemon; a remote
+daemon deployment must copy the workspace into a volume instead.
+
+`LocalSandboxRunner` exists for development and demo recording. It runs an
+allow-listed executable directly on the host, cannot disable networking, and reports
+`isolation="local (NOT a security boundary)"` plus `network_disabled=False` so no caller
+can mistake it for the Docker boundary.
+
+Docker-specific integration tests are marked `docker`; when the daemon or image is
+missing, they are skipped and reported, never treated as passing.
+
+## 5. Tech stack and why
 
 | Choice | Why | Alternatives considered |
 | --- | --- | --- |
@@ -86,7 +117,7 @@ edges enforce the retry cap; the loop counter lives in state and is also persist
 | Next.js 15 | App Router, server components, easy Vercel deployment. | Vite SPA (no Vercel server features), Remix. |
 | Groq / Anthropic adapters behind one interface | Provider swap via env var; deterministic FakeLLM keeps tests offline and cheap. | LangChain model wrappers (extra abstraction; not needed for two REST APIs). |
 
-## 5. Data models
+## 6. Data models
 
 All ids are UUID strings. Times are UTC. SQLite stores JSON columns as text but
 SQLAlchemy exposes Python dicts.
@@ -190,7 +221,7 @@ SQLAlchemy exposes Python dicts.
 | `cost_usd` | float | LLM cost. |
 | `created_at` | datetime | Creation time. |
 
-## 6. Failure modes (draft, expanded in Phase 10)
+## 7. Failure modes (draft, expanded in Phase 10)
 
 - **GitHub down / rate limited:** job stays failed with error; retry from dashboard is a
   future extension. Webhook still returns 202 after durable enqueue.

@@ -127,3 +127,42 @@ line of their own.
 LLM tokens and tests unrelated code), semantic diff (no reliable TS parser without
 running Node).
 
+## D015 — Docker is the only claimed security boundary
+**What:** The sandbox runner creates a fresh container per command with a non-root user,
+read-only root filesystem, only the workspace bind-mounted rw, all capabilities dropped,
+`no-new-privileges`, memory/CPU/PID limits, a noexec tmpfs and unconditional removal.
+Test commands are forced to `network_disabled=True`; install commands may opt into the
+network.
+**Why:** Generated tests and repository code are untrusted. Process-level isolation
+cannot contain filesystem or network access; a container with explicit limits gives a
+reviewable boundary and clean teardown.
+**Alternatives:** Host subprocess (no isolation), Firecracker/gVisor (stronger but too
+much operations for this project), running tests in GitHub Actions (cannot verify in the
+webhook request path and still needs untrusted-code isolation).
+**Residual risk:** Docker-outside-of-Docker gives the API container root-equivalent
+access to the host daemon; documented in `SECURITY.md` as a demo-only deployment.
+
+## D016 — Local sandbox mode is labelled, never silently substituted
+**What:** `SANDBOX_MODE=local` runs an allow-listed Node/npm command on the host. Result
+objects report `isolation="local (NOT a security boundary)"` and
+`network_disabled=False` because local mode cannot enforce either.
+**Why:** The build machine has no Docker daemon; demos and dashboard work must still be
+possible. Reporting the truth prevents the local path from being mistaken for the
+verified production boundary.
+**Alternatives:** Refuse to run without Docker (no demo), pretend a subprocess is
+isolated (dishonest).
+
+## D017 — Sandbox commands are argv lists with an executable/env allow-list
+**What:** Commands are validated argv tuples (no shell strings, NUL, excessive length or
+argument count). The executable must be one of `node`, `npm`, `npx`, `pnpm`, `yarn`,
+`vitest`, `playwright`. The host environment is not inherited; Docker gets a fixed
+baseline and only explicitly allowed extras, with secret-looking/arbitrary names
+rejected.
+**Why:** `.prguard.yml` and LLM output are untrusted; a generic `sh -c` makes every later
+control meaningless. An allow-list also stops a worker bug from forwarding
+`GITHUB_TOKEN`, `DATABASE_URL` or provider keys into the sandbox.
+**Alternatives:** Shell strings (injection, quoting bugs), forwarding the host
+environment (secret leakage), no executable restriction (arbitrary binaries).
+**Limitation:** `npm` lifecycle scripts remain arbitrary code inside the container, which
+is why container isolation and network policy are the real boundary.
+

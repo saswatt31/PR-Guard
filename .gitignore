@@ -17,7 +17,9 @@ node_modules/
 out/
 coverage/
 !backend/app/coverage/
-!backend/app/coverage/**
+!backend/app/coverage/**/*.py
+!backend/app/coverage/**/*.pyi
+!backend/app/coverage/**/py.typed
 playwright-report/
 test-results/
 *.tsbuildinfo

@@ -152,3 +152,66 @@
 - D012 (tree-sitter traversal without cursor iteration), D013 (coverage-authoritative
   gap signal with heuristic fallback), D014 (changed-line function selection and
   whole-function test scope).
+
+## Phase 4 — Docker sandbox, resource limits, security tests
+**Built**
+- `DockerSandboxRunner`: one fresh container per command, non-root uid/gid 10001,
+  read-only root filesystem, workspace as the only rw bind mount, `cap_drop=ALL`,
+  `no-new-privileges`, memory/CPU/PID/shm limits, noexec `/tmp` tmpfs, timeout + kill,
+  unconditional force removal, and typed results.
+- Test phase is forced offline in code; install phase can request network. Callers
+  cannot pass `network_disabled=False` for a test run.
+- argv validation (no shell strings, NUL, oversized args) and an executable allow-list
+  (`node`, `npm`, `npx`, `pnpm`, `yarn`, `vitest`, `playwright`).
+- Environment policy: no host environment inheritance; fixed Docker baseline plus
+  only `CI`, `NODE_ENV`, `NODE_OPTIONS`, npm/Vitest/Playwright/PR-Guard names; secret-
+  looking and arbitrary variables are rejected.
+- `LocalSandboxRunner` for development/demo, explicitly reporting
+  `isolation="local (NOT a security boundary)"` and `network_disabled=False`.
+- `backend/sandbox/Dockerfile` (`prguard-sandbox:node20`) with Node 20 and uid 10001.
+- 19 new sandbox tests using a fake Docker client for creation kwargs, network policy,
+  timeout/kill/removal, image pull, environment rejection and local execution.
+- `SECURITY.md` Phase 4 draft with trust boundaries, HMAC/fork policy, threat model and
+  residual risks. `ARCHITECTURE.md` now documents the sandbox contract.
+
+**Files to read**
+- `backend/app/sandbox/docker.py` — security kwargs, wait/kill, cleanup.
+- `backend/app/sandbox/security.py` — argv/env policy and log truncation.
+- `backend/app/sandbox/local.py` — development-only fallback.
+- `backend/app/sandbox/models.py` — `SandboxResult`, limits, command validation.
+- `backend/sandbox/Dockerfile` — minimal non-root Node image.
+- `backend/tests/test_sandbox_docker.py` — fake-client security tests + skipped Docker
+  integration test.
+
+**Interview questions**
+1. Why is `network_disabled=True` enforced for the test phase but not install? (Tests
+   and generated code are the untrusted execution; installing dependencies needs the
+   registry. The install phase has only repository-controlled package scripts inside the
+   same hardened container.)
+2. What does a read-only root filesystem actually prevent, and what does it not? (It
+   blocks writes to `/etc`, `/usr` and the image; the workspace and noexec `/tmp` remain
+   writable, and a malicious test can still exhaust CPU/memory/disk until limits or
+   cleanup.)
+3. Why is a local subprocess not an acceptable production sandbox? (No filesystem
+   isolation from the host user, no network namespace, no capability drop; it is only a
+   convenience mode and is labelled as such.)
+
+**Simplified / mocked**
+- Docker is not installed on the build machine. All Docker tests are marked `docker` and
+  skipped when the daemon is unavailable; no real container execution is claimed here.
+  Fake-client tests verify the requested isolation flags, not Docker's enforcement.
+- Workspace is a bind mount, so a daemon on another host needs a volume-copy variant;
+  documented in `SECURITY.md` and `ARCHITECTURE.md`.
+- The sandbox does not yet run a real Vitest project; Phase 5 wires the agent graph and
+  coverage execution into this runner.
+- Docker-outside-of-Docker (Compose) grants host-daemon control; acceptable for the demo,
+  explicitly not for multi-tenant production.
+
+**Measured this phase**
+- Backend: 171 tests passed, 0 failed, 1 skipped (`test_real_docker_container_...`,
+  Docker daemon unavailable). Coverage **93.54%** (statements+branches over `backend/app`).
+  `ruff check` and `ruff format --check` clean.
+
+## Phase 4 decisions added
+- D015 (Docker-only security boundary), D016 (truthful local fallback), D017 (argv and
+  environment allow-lists).

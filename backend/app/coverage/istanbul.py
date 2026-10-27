@@ -61,9 +61,7 @@ class CoverageReport:
         if not candidates:
             return None
         overlapping = [
-            fn
-            for fn in candidates
-            if fn.start_line <= end_line and fn.end_line >= start_line
+            fn for fn in candidates if fn.start_line <= end_line and fn.end_line >= start_line
         ]
         if overlapping:
             return max(fn.hits for fn in overlapping)

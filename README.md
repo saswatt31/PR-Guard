@@ -19,7 +19,10 @@ python -m venv ../.venv
 Docker Compose (requires Docker):
 
 ```bash
+docker build -t prguard-sandbox:node20 backend/sandbox
 docker compose up --build
 ```
 
-The API is on <http://localhost:8000> (`/healthz`, `/docs`).
+The API is on <http://localhost:8000> (`/healthz`, `/docs`). The sandbox image is
+separate from the API image: the API launches sibling containers from it, so it must be
+built once on the Docker host.

@@ -107,9 +107,7 @@ def find_gaps(
                     GapDecision(function, "sibling test file exists", tuple(sibling))
                 )
             else:
-                result.gaps.append(
-                    GapDecision(function, "no sibling test file for default export")
-                )
+                result.gaps.append(GapDecision(function, "no sibling test file for default export"))
             continue
 
         coverage_hits = None
@@ -216,9 +214,7 @@ def _find_references(name: str, contents: dict[Path, str], root: Path) -> list[s
 def _sibling_tests(root: Path, file_path: str) -> list[str]:
     source = root / PurePosixPath(file_path)
     stem = source.stem
-    candidates = [
-        source.with_name(stem + suffix) for suffix in TEST_FILE_SUFFIXES
-    ]
+    candidates = [source.with_name(stem + suffix) for suffix in TEST_FILE_SUFFIXES]
     candidates.extend(
         source.parent / "__tests__" / (stem + suffix) for suffix in TEST_FILE_SUFFIXES
     )
