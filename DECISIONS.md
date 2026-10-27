@@ -60,3 +60,36 @@ pretend subprocess isolation is secure (unacceptable).
 so no build could be committed there.
 **Alternatives:** Work in a temp directory (less discoverable), change system ACLs
 (requires elevation and affects the user's OneDrive folder).
+
+## D008 — Idempotency uses delivery id *and* commit SHA
+**What:** A repeat delivery id is a no-op; a new delivery for a repo/PR head SHA that
+was already analysed returns the existing run instead of starting a second one.
+**Why:** GitHub retries and users can redeliver events. Delivery-id dedupe alone would
+re-run the same commit, duplicate LLM spend and post duplicate comments.
+**Alternatives:** Delivery id only (double spend on redelivery), PR number only (would
+ignore pushes), no dedupe (unsafe with at-least-once webhooks).
+**Limitation:** A manual "re-run" feature will need an explicit force flag later.
+
+## D009 — GitHub App JWT uses a string `iss`
+**What:** `PyJWT 2.15` rejects non-string issuers; the App id is serialized as a string.
+**Why:** The installed PyJWT refuses integer `iss`, and GitHub accepts the app id in
+string form. Tests decode the token and assert the claim.
+**Alternatives:** Pin an older PyJWT (unnecessary), hand-roll JWT (worse).
+
+## D010 — Installation tokens cached in memory only
+**What:** A per-installation token/expiry dict, refreshed one minute early, with one
+forced refresh on a 401.
+**Why:** Avoids an extra token request per API call; tokens live at most one hour and
+never touch SQLite or the sandbox.
+**Alternatives:** Fetch a token per request (extra latency/rate limit), persist tokens
+(secret at rest, invalidation complexity).
+
+## D011 — Checkout by tarball, extracted with a hardened extractor
+**What:** Download `/tarball/{sha}`, strip GitHub's single root directory, reject
+absolute/traversal/symlink/hardlink/duplicate members, cap file count and expanded
+size.
+**Why:** Repository content is attacker-controlled even for trusted authors. A single
+API call avoids git credential plumbing and guarantees the analysed commit matches the
+webhook SHA.
+**Alternatives:** `git clone` (extra binary + credentials), per-file API (N+1 calls).
+

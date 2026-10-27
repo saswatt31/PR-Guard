@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     sandbox_install_network: bool = True
     sandbox_keep_failed: bool = False
     max_repo_tarball_bytes: int = 50 * 1024 * 1024
+    max_webhook_bytes: int = 10 * 1024 * 1024
 
     # Dashboard / links
     cors_origins: str = "http://localhost:3000"

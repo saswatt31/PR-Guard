@@ -40,6 +40,19 @@ def app(settings: Settings, database: Database):
     return create_app(settings=settings, database=database)
 
 
+@pytest.fixture(scope="session")
+def private_key_pem() -> str:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("utf-8")
+
+
 @pytest.fixture
 def client(app) -> Iterator[TestClient]:
     with TestClient(app) as test_client:

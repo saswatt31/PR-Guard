@@ -51,6 +51,13 @@ class StepStatus(StrEnum):
     SKIPPED = "skipped"
 
 
+class JobStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    DONE = "done"
+    FAILED = "failed"
+
+
 class TestStatus(StrEnum):
     # Prevent pytest from trying to collect this enum as a test class.
     __test__ = False

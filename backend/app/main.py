@@ -10,17 +10,31 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.db import Database
+from app.queue.worker import RunProcessor, Worker
 from app.settings import Settings, get_settings
+from app.webhooks.routes import router as webhook_router
 
 
-def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    database: Database | None = None,
+    processor: RunProcessor | None = None,
+) -> FastAPI:
     cfg = settings or get_settings()
     db = database or Database(cfg.database_url)
+    if cfg.app_env == "production" and cfg.github_webhook_secret in {"", "change-me"}:
+        raise RuntimeError("GITHUB_WEBHOOK_SECRET must be set in production")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.db.create_all()
+        if cfg.worker_enabled and processor is not None:
+            app.state.worker = Worker(app.state.db, processor, cfg)
+            await app.state.worker.start()
         yield
+        worker: Worker | None = getattr(app.state, "worker", None)
+        if worker is not None:
+            await worker.stop()
         app.state.db.dispose()
 
     app = FastAPI(
@@ -30,6 +44,8 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     )
     app.state.settings = cfg
     app.state.db = db
+    app.state.worker = None
+    app.include_router(webhook_router)
 
     app.add_middleware(
         CORSMiddleware,
