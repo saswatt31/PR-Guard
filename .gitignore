@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.next-types/
+.eslintcache
+
+# Runtime data
+data/
+*.db
+*.db-journal
+*.sqlite3
+logs/
+artifacts/
+
+# Secrets
+.env
+.env.local
+*.pem
+private-key*
+!demo/recorded_runs/*.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,46 @@
+services:
+  api:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////data/prguard.db
+      SANDBOX_MODE: docker
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+      # Docker-outside-of-Docker: the worker launches sibling sandbox containers.
+      # This grants the API container root-equivalent control of the host daemon.
+      # Do not expose this service to the public internet without a hardened runner.
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      PRGUARD_API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  demo-repo:
+    image: node:20-bookworm-slim
+    working_dir: /repo
+    command: ["sh", "-lc", "npm ci && npm test -- --run"]
+    volumes:
+      - ./demo-repo:/repo
+    profiles: ["demo"]
