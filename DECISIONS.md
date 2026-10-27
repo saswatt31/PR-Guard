@@ -93,3 +93,37 @@ API call avoids git credential plumbing and guarantees the analysed commit match
 webhook SHA.
 **Alternatives:** `git clone` (extra binary + credentials), per-file API (N+1 calls).
 
+## D012 — Tree-sitter traversal uses an explicit stack
+**What:** Extraction traverses with a small `_walk()` generator over `node.children`
+instead of `root.walk()` / `TreeCursor`.
+**Why:** `tree-sitter` 0.26 changed cursor iteration semantics; treating a `TreeCursor`
+as an iterable raises `TypeError`. Explicit traversal is version-stable and easy to
+bound.
+**Alternatives:** Pin an older tree-sitter (fragile), regex extraction (incorrect for
+nested braces/templates/generics).
+
+## D013 — Coverage is authoritative; name matching is a fallback
+**What:** If a baseline Istanbul report contains a function entry, a zero hit count
+reports a gap even when a test mentions the name. Without coverage, a test-file
+reference marks the function covered; otherwise it is a gap. Default exports use a
+sibling-test heuristic.
+**Why:** Name matching cannot distinguish import-only usage from execution; coverage
+can. When uncertain, over-reporting a gap is safer than silently skipping untested
+code.
+**Alternatives:** Name matching only (false negatives), AST-based call graph (large
+scope, still not execution evidence), requiring coverage (blocks repos without a
+baseline run).
+**Limitation:** Coverage paths must be normalized; duplicate function names are matched
+to the nearest/overlapping declaration, which is approximate for generated wrappers.
+
+## D014 — Function selection uses changed new-file lines; tests cover whole functions
+**What:** A function is in scope when any changed new-file line intersects its start/end
+range. `is_new` requires every line in the function range to be an added line. The test
+writer receives the whole function, not just the diff hunk.
+**Why:** Partial-hunk tests produce broken imports; whole-function context is what a
+developer would use. Deletions are mapped to the removal point because they have no new
+line of their own.
+**Alternatives:** Only added lines (misses pure deletions), whole changed file (wastes
+LLM tokens and tests unrelated code), semantic diff (no reliable TS parser without
+running Node).
+

@@ -88,3 +88,67 @@
 ## Phase 2 decisions added
 - D008 (dedupe by delivery + commit), D009 (JWT `iss` string), D010 (token cache),
   D011 (tarball-only checkout).
+
+## Phase 3 — Diff analysis, TypeScript function extraction, coverage gaps
+**Built**
+- Unified diff parser: per-file status (added/modified/deleted/renamed), binary
+  detection, hunk coordinates, added/removed line sets, old→new line mapping and
+  quoted/CRLF path handling.
+- Analyzer that reads only changed, non-deleted, non-binary files from the checkout,
+  rejects absolute/traversal paths, caps file size, and maps changed lines onto whole
+  functions. New files mark every extracted function as new.
+- Tree-sitter extraction for TypeScript/JavaScript: top-level functions, exported
+  const/let arrow and function expressions, class methods/arrow fields, object-literal
+  methods, CommonJS `module.exports.*`/`exports.*`, default exports, re-export lists.
+  Constructors, private/protected members, nested functions, declaration files and
+  unsupported extensions are skipped.
+- Istanbul/V8 coverage JSON parser: per-function hit counts, path normalization for
+  absolute/container paths, duplicate-name disambiguation by line range/proximity,
+  and line percentage fallback.
+- Gap finder: coverage hit count is authoritative; otherwise test-file references and
+  default-export sibling tests are fallbacks. Unexported functions, test files and
+  paths disabled by `.prguard.yml` are recorded as skipped with reasons.
+- `.gitignore` was corrected so the hand-written `backend/app/coverage/` Python package
+  is tracked instead of being hidden by the generated `coverage/` output rule.
+
+**Files to read**
+- `backend/app/diff/parser.py` — unified diff semantics without a git dependency.
+- `backend/app/diff/models.py` — `FileDiff.changed_new_lines` and `FunctionInfo`.
+- `backend/app/diff/extract.py` — tree-sitter candidate rules and `mark_only_changed`.
+- `backend/app/diff/analyzer.py` — safe path resolution and checkout reads.
+- `backend/app/coverage/istanbul.py` / `gap.py` — authoritative vs fallback signals.
+- `backend/tests/test_diff_parser.py`, `test_diff_analyzer.py`,
+  `test_function_extract.py`, `test_istanbul_coverage.py`, `test_gap.py`.
+
+**Interview questions**
+1. Why does the diff parser track both added lines and removed-line mappings? (A pure
+   deletion has no new line; mapping it to the removal point still selects the function
+   that lost code, at the cost of occasionally selecting an adjacent one.)
+2. Why is Istanbul coverage authoritative over “a test mentions this name”? (Name
+   matching is cheap but produces false positives; an existing function hit count is
+   evidence that code actually executed. The fallback deliberately over-reports gaps.)
+3. Why tree-sitter instead of a TypeScript compiler or regex? (No Node process needed,
+   robust syntax trees for TS/TSX/JS/JSX, and broken files still yield partial trees;
+   regexes mis-handle templates, generics and nested braces.)
+
+**Simplified / deferred**
+- Extraction is declaration-oriented and heuristic: overload signatures, destructured
+  default exports, decorated Angular classes and dynamic `require` patterns are not
+  resolved. A missing function becomes a missed test opportunity, not a false test.
+- The default-export sibling-test heuristic treats any co-located test file as evidence;
+  it is intentionally a fallback, with coverage taking precedence when available.
+- The baseline coverage run is not executed in this phase; Phase 4 will run Vitest in
+  the sandbox and feed the resulting JSON into this parser.
+- Local analysis is tested on Python 3.12.1; tree-sitter wheels installed successfully
+  on Windows. Docker-based coverage execution remains unavailable on this machine.
+
+**Measured this phase**
+- Backend: 135 tests passed, 0 failed. Coverage **92.48%** (statements+branches over
+  `backend/app`, `pytest-cov`). `ruff check` and `ruff format --check` clean.
+- `tree-sitter==0.26.0` + `tree-sitter-typescript==0.23.2` are installed in the local
+  venv; parser APIs were exercised against TypeScript, TSX and CommonJS fixtures.
+
+## Phase 3 decisions added
+- D012 (tree-sitter traversal without cursor iteration), D013 (coverage-authoritative
+  gap signal with heuristic fallback), D014 (changed-line function selection and
+  whole-function test scope).

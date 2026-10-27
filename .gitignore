@@ -16,6 +16,8 @@ node_modules/
 .next/
 out/
 coverage/
+!backend/app/coverage/
+!backend/app/coverage/**
 playwright-report/
 test-results/
 *.tsbuildinfo
