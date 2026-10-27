@@ -215,3 +215,89 @@
 ## Phase 4 decisions added
 - D015 (Docker-only security boundary), D016 (truthful local fallback), D017 (argv and
   environment allow-lists).
+
+## Phase 5 — `.prguard.yml`, provider-agnostic LLM, budget, safety and LangGraph pipeline
+**Built**
+- `.prguard.yml` loader: strict Pydantic schema, 64 KB cap, first-file-wins, defaults,
+  argv command validation through the sandbox allow-list, relative output paths, and
+  bounded glob patterns. The config comes from the PR head and is treated as untrusted.
+- Provider-independent LLM layer: `LLMClient` protocol, `FakeLLM` for deterministic
+  offline runs, Groq and Anthropic REST adapters using `httpx`, token pricing and a
+  `BudgetedLLM` wrapper with per-run call/token/cost caps. Repo config can tighten (or
+  relax within schema limits) the process defaults.
+- Prompt builders for writer, fixer and reviewer. Repository text is wrapped in explicit
+  untrusted-data tags; closing tags are neutralized so source or failure output cannot
+  terminate a delimiter early. No secret is placed in any prompt.
+- Structured output parsing with markdown-fence/prose recovery and Pydantic validation.
+- Generated-test static policy: repository-contained test path, allowed suffixes, size
+  and line caps, no source/overwrite/symlink writes, required `it()`/`expect()`, forbidden
+  modules/code, approved-package and relative-import containment checks. This is early
+  rejection, not the security boundary; Docker remains the boundary.
+- Vitest JSON result parser with per-file attribution, absolute/Windows path matching,
+  skipped/failed assertion handling and truncation.
+- LangGraph pipeline nodes: analyze → find gaps → write → install/test → fix loop →
+  review. Install runs once per run; every test phase is network-disabled; results and
+  coverage are cleared before each run; verification requires a passing report and, when
+  coverage names the function, a non-zero hit count.
+- UI functions are opt-in (`include_ui_tests: true`) and receive Vitest/jsdom tests.
+  Playwright generation is intentionally not part of this writer (see D022).
+- Fixed a real `FakeLLM` bug: the system prompt names `<FUNCTION_JSON>`, so a naive
+  regex swallowed the actual payload. Tag extraction now scans every opening tag and
+  accepts the first payload that parses.
+- `PipelineResult` now exposes the sandbox command/result log for later persistence.
+
+**Files to read**
+- `backend/app/config/repo.py` — untrusted YAML and command/path policy.
+- `backend/app/llm/base.py`, `fake.py`, `groq.py`, `anthropic.py`, `budget.py`,
+  `factory.py` — provider contract, deterministic client, adapters, caps.
+- `backend/app/agents/prompts.py` — delimiter construction and neutralization.
+- `backend/app/agents/parsing.py` — JSON extraction plus schema validation.
+- `backend/app/agents/safety.py` — generated-test policy and safe writes.
+- `backend/app/agents/results.py` — Vitest per-file results.
+- `backend/app/agents/graph.py` — LangGraph state, nodes, routing, verification.
+- `backend/tests/test_repo_config.py`, `test_llm_clients.py`, `test_llm_budget.py`,
+  `test_agent_*.py` — config, adapters, safety, parsing, prompts, pipeline.
+
+**Interview questions**
+1. Why have both `FakeLLM` and real adapters? (Deterministic offline tests and a demo
+   provider; the graph only sees one protocol, so provider choice is configuration.
+   Live provider calls are not claimed because no user credentials were available.)
+2. Why three validation layers after the LLM? (Pydantic rejects shape/type errors, the
+   static policy rejects dangerous paths/imports/code before writing, and the sandbox is
+   the only actual containment boundary. Each layer has a different failure mode.)
+3. Why is the budget checked after the response as well as before the call? (The call
+   cap is exact; token/cost totals are only known after usage returns. One response of
+   overshoot is possible and is recorded in the run cost instead of silently ignored.)
+4. Why is the fixer counter global instead of per test? (It bounds total LLM calls and
+   wall-clock time for the run; per-test independent budgets would be easier to reason
+   about per function but can multiply spend. Per-draft attempt counts are still stored.)
+5. Why Vitest-only generation? (One install/test command and one sandbox image; browser
+   binaries and a dev server make Playwright execution a different pipeline. UI logic is
+   covered with jsdom when opted in; Playwright is used for dashboard E2E.)
+
+**Simplified / mocked**
+- No live Groq or Anthropic request was made. Adapter tests use `httpx.MockTransport` and
+  assert URL, headers, payload, usage parsing and error wrapping; the end-to-end pipeline
+  uses `FakeLLM` only.
+- Pipeline tests use an in-memory fake sandbox to script install/test outcomes, result
+  JSON and coverage JSON. They verify graph routing and verification logic, not Docker or
+  a real Vitest process. Docker tests remain skipped on this machine.
+- Playwright test generation for UI changes is not implemented; `include_ui_tests`
+  enables Vitest/jsdom tests. This is recorded in D022 and must not be described as
+  Playwright generation.
+- The writer currently emits one test per function and accepts only `framework="vitest"`;
+  a Playwright proposal is rejected before execution.
+- `max_fix_attempts` is a run-level round count, not an independent cap per function.
+
+**Measured this phase**
+- Backend: 392 tests passed, 0 failed, 1 skipped (real-Docker test; daemon unavailable).
+  Coverage **95.11%** (statements+branches over `backend/app`, Python 3.12.1 locally;
+  CI targets 3.11). `ruff check` and `ruff format --check` clean.
+- New Phase 5 modules measured: `agents/graph.py` 95%, `agents/safety.py` 99%,
+  `config/repo.py` 97%, `llm/fake.py` 96%; adapter modules are fully covered by
+  `httpx.MockTransport` tests.
+
+## Phase 5 decisions added
+- D018 (provider protocol + FakeLLM), D019 (post-response budget accounting),
+  D020 (static generated-test policy), D021 (delimiter neutralization),
+  D022 (Vitest-only generation and jsdom UI opt-in), D023 (global fixer rounds).

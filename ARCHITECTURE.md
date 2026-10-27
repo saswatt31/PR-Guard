@@ -1,7 +1,9 @@
 # Architecture
 
-> Draft after Phase 1. Data-flow details and failure modes are expanded in Phase 10;
-> every table and field below already reflects the implemented SQLAlchemy models.
+> Status after Phase 5. The graph, LLM/config layer and sandbox are implemented; the run
+> processor that downloads a PR, persists results and posts the comment is Phase 6.
+> Data-flow details and failure modes are expanded in Phase 10; every table and field
+> below already reflects the implemented SQLAlchemy models.
 
 ## 1. System view
 
@@ -32,23 +34,40 @@ changing the API.
 
 ```mermaid
 flowchart TD
-    START([start]) --> A[Diff Analyzer<br/>fetch diff + parse functions]
-    A --> B[Coverage Gap Finder<br/>match existing tests / coverage hints]
-    B -->|no gaps| R[Reporter]
+    START([start]) --> A[Diff Analyzer<br/>parse changed functions]
+    A --> B[Coverage Gap Finder<br/>baseline coverage / test references]
+    B -->|no gaps| V[Code Review<br/>separate prompt]
     B -->|gaps| C[Test Writer<br/>one Vitest test per function]
-    C --> E[Optional E2E Writer<br/>Playwright for UI changes]
-    E --> S[Sandbox Runner<br/>install once, run tests without network]
-    S -->|all pass| V[Code Review<br/>separate prompt]
-    S -->|failures and attempt < max| F[Fixer<br/>error + test + source back to LLM]
+    C --> S[Sandbox Runner<br/>install once, run tests without network]
+    S -->|all pass| V
+    S -->|failures and round < max| F[Fixer<br/>error + test + source back to LLM]
     F --> S
     S -->|failures exhausted| V
-    V --> R
-    R --> END([end])
+    V --> END([end])
 ```
 
-The graph is a `langgraph.graph.StateGraph` over a typed `PRGuardState`. Conditional
-edges enforce the retry cap; the loop counter lives in state and is also persisted in
-`generated_tests.attempts`.
+The graph is a `langgraph.graph.StateGraph` over a typed `AgentState` with nodes
+`analyze`, `find_gaps`, `write`, `execute`, `fix` and `review`. Conditional edges
+enforce the retry cap; the loop counter lives in state and per-test attempt counts are
+stored on `TestProposal`. The nodes live in `backend/app/agents/graph.py`; the Phase 6
+run processor persists the result and posts the PR comment outside this graph.
+
+### LLM, config and generated-test policy
+
+- `AgentDependencies` injects settings, `RepoConfig`, a `BudgetedLLM` and a sandbox
+  object. Tests substitute `FakeLLM` and an in-memory sandbox.
+- `BudgetedLLM` enforces per-run call, token and cost caps. `.prguard.yml` may tighten
+  the settings defaults; the run cost summary is returned in `PipelineResult.cost`.
+- The writer receives source plus a suggested relative test path. Proposals pass through
+  Pydantic parsing and a static policy (path containment, suffix, size, overwrite,
+  required assertions, forbidden modules/code, import allow-list) before writing.
+- Untrusted prompt payloads are wrapped in explicit tags and closing-tag text is
+  neutralized. This is defence in depth; Docker remains the execution boundary.
+- The test phase is always network-disabled. Install runs once per pipeline and may use
+  the network when `.prguard.yml` allows it. A draft is verified only when the Vitest
+  report marks it passing and, if coverage names the function, its hit count is non-zero.
+- UI functions are skipped unless `include_ui_tests` is true; when enabled they receive
+  Vitest/jsdom tests. Playwright generation is not part of this writer (D022).
 
 ## 3. Data flow for one pull request
 
@@ -56,22 +75,25 @@ edges enforce the retry cap; the loop counter lives in state and is also persist
 2. The webhook route reads the **raw body**, verifies HMAC-SHA-256 in constant time,
    checks the delivery id, inserts `deliveries`, creates `runs` + `jobs`, returns 202.
    A duplicate delivery is a no-op.
-3. The worker claims the job, downloads the PR head tarball with an installation token,
-   and safely extracts it (path traversal and size checks).
+3. The Phase 6 run processor claims the job, downloads the PR head tarball with an
+   installation token, and safely extracts it (path traversal and size checks). The
+   download/extract primitives already exist; the worker is not wired to them yet.
 4. Diff Analyzer parses changed files and unified hunks, extracts added/changed
    TypeScript functions with their signatures and line ranges.
-5. Gap Finder ignores generated/test files and files outside `.prguard.yml` paths, then
-   checks existing test files for references to each function.
+5. Gap Finder applies `.prguard.yml` path filters, then uses baseline Istanbul coverage
+   as the authoritative signal (zero hits = gap). Without coverage it falls back to test
+   file references and default-export sibling tests, deliberately over-reporting gaps.
 6. Test Writer asks the LLM for strict JSON containing a test file per gap. Output is
-   schema-validated and passed through a static safety check before it is written to
-   the sandbox workspace.
+   parsed with Pydantic, passed through the static safety policy, and only then written
+   to the sandbox workspace.
 7. Sandbox Runner creates a fresh container: install phase (network enabled only if
    configured), then test phase (`network_disabled=True`, non-root, read-only root FS,
    memory/CPU/PID limits, timeout). Output is parsed into per-test results and coverage.
 8. Failures go to the Fixer with the failing test, source, and truncated error. After
-   `max_attempts` the test is marked `rejected` and reported as unverified.
-9. Reporter posts one comment containing verified tests only, coverage delta, costs and
-   unverified functions. The dashboard reads the same persisted state.
+   `max_fix_attempts` rounds the test is marked `rejected` and reported as unverified.
+9. The review node produces Markdown commentary. Phase 6 adds the run processor that
+   persists results and posts one comment containing verified tests only, coverage delta,
+   costs and unverified functions. The dashboard reads the same persisted state.
 
 ## 4. Sandbox execution boundary
 
@@ -227,10 +249,21 @@ SQLAlchemy exposes Python dicts.
   future extension. Webhook still returns 202 after durable enqueue.
 - **LLM returns malformed JSON:** schema validation rejects it, the gap is reported as
   skipped; no test is executed.
+- **LLM budget exhausted:** remaining gaps are not written; already verified tests are
+  kept, the cap hit is recorded in `errors`/cost, and the review may be skipped.
+- **Invalid `.prguard.yml`:** the run fails with a config error before any command or
+  generated test is executed; the default config is not silently substituted.
+- **Dependency install fails:** every draft is rejected with the install failure, the
+  test phase is not run, and no test is posted.
+- **Vitest report is missing:** verification falls back to the sandbox exit status only
+  when no report file exists; a present report that omits a draft rejects that draft.
+- **Coverage reports zero executions:** an otherwise passing test is rejected, because
+  the target function did not actually run.
 - **Sandbox daemon unavailable:** run fails cleanly; no unverified tests are posted.
 - **Test never passes:** dropped after the attempt cap and listed as "could not verify".
 - **Worker crashes mid-run:** `jobs.status=processing` + stale `started_at` is reclaimed
   by the worker on startup (Phase 2).
 - **Duplicate webhook:** unique `delivery_id` returns 200/202 without a second run.
-- **Prompt injection in diff:** all repository content is wrapped as untrusted data;
-  generated code is static-checked and only executed inside the sandbox.
+- **Prompt injection in diff:** all repository content is wrapped as untrusted data with
+  closing tags neutralized; generated code is static-checked and only executed inside the
+  sandbox.
