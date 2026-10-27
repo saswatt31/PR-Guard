@@ -1,0 +1,7 @@
+# PR-Guard repository configuration is read from the pull-request head.
+# The defaults already run `npm ci` and Vitest with JSON coverage; these limits
+# keep the demo run cheap and bounded.
+max_tests: 4
+max_fix_attempts: 2
+max_cost_usd: 0.25
+run_baseline_coverage: true

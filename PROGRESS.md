@@ -503,3 +503,76 @@ write path.
 - D027 (read-only API), D028 (validated filtering/pagination at both edges), D029
   (standalone non-root dashboard image), D030 (offline Playwright E2E), D031 (dev-tool
   upgrades and PostCSS pin).
+
+## Phase 8 - Demo repository and CI matrix
+
+**Demo repository**
+- Added `demo-repo/`, a standalone TypeScript/Vitest library (not a workspace package)
+  with `add`, `clamp`, `mean`, `slugify` and `titleCase`; 11 tests cover the baseline at
+  **100% statements/branches/functions/lines**.
+- Added `.prguard.yml` with a four-test cap, two fixer rounds and a $0.25 run cap. The
+  default PR-Guard install/test commands (`npm ci`, Vitest with JSON coverage) work
+  unchanged.
+- Added `demo-pr.patch`, which adds `normalizeScore` and exports it without tests. This is
+  the deterministic demo PR: baseline coverage marks the new function as a gap, the writer
+  proposes a test, and the sandbox decides whether it is verified. The patch applies
+  cleanly (`git apply --check`).
+- Added demo instructions, expected pipeline behaviour and failure demos (removing an
+  assertion, adding a forbidden import, opting into jsdom).
+- Updated the Compose `demo-repo` profile to run `npm ci && npm test`.
+
+**CI**
+- Replaced the disabled dashboard placeholder with a real job: `npm ci`, typecheck,
+  Vitest, coverage thresholds, production build, Chromium install and offline Playwright
+  E2E, with a failure-only report artifact.
+- Added a demo-repo job (install, typecheck, tests) and a container job that builds the
+  sandbox, API and dashboard images.
+- Backend job still builds the sandbox image, runs ruff check/format and the 90% coverage
+  gate. Added timeouts and concurrency cancellation.
+- Workflow YAML parses successfully locally. **The GitHub Actions workflow has not run**:
+  this checkout has no remote and Docker is unavailable here. CI results are not claimed.
+
+**Verification actually run**
+- `demo-repo`: `npm test` **11 passed**; `npm run test:coverage` **100%** across 11
+  statements, 4 branches, 7 functions and 10 lines; `npm run typecheck` clean;
+  `npm audit` **0 vulnerabilities**.
+- `demo-repo`: `git apply --check demo-pr.patch` succeeds.
+- CI YAML parsed with PyYAML; job keys and concurrency block are present.
+
+**Files to read**
+- `demo-repo/src/` — the baseline library.
+- `demo-repo/tests/` — full baseline coverage.
+- `demo-repo/demo-pr.patch` — the untested function used for the live demo.
+- `demo-repo/.prguard.yml` — bounded demo configuration.
+- `.github/workflows/ci.yml` — backend, dashboard, demo and container jobs.
+
+**Interview questions**
+1. Why keep the demo repository standalone instead of a workspace package? (PR-Guard
+   downloads and runs a repository as its own root; a workspace would change `npm ci`,
+   coverage paths and the tarball layout. Standalone matches the real target.)
+2. Why does the demo PR add a new file instead of editing an existing function? (A new
+   exported function has no existing test references and no baseline coverage, which makes
+   the gap unambiguous for the demo. Editing an existing function exercises changed-line
+   selection but is a weaker visual demo.)
+3. What does the demo prove and what does it not prove? (It proves the baseline suite,
+   config defaults and patch workflow. It does not prove Docker isolation, live GitHub App
+   auth or real LLM output; those need the corresponding environment.)
+4. Why run a separate demo job in CI? (It catches accidental drift in the repository that
+   the pipeline is supposed to analyze, without coupling the backend test suite to npm.)
+5. Why build all three images in CI? (The sandbox, API and dashboard have different base
+   images and Dockerfiles. Building each catches missing files and broken standalone
+   output before a deploy; it is not the same as running the Compose stack.)
+
+**Simplified / mocked**
+- The demo pipeline was not executed end-to-end in this phase; only the baseline suite and
+  patch applicability were verified. The full local/FakeLLM smoke is part of final
+  verification.
+- CI configuration is committed but unexecuted because there is no GitHub remote and no
+  Docker daemon here. The local equivalents of each job were run individually where
+  possible (backend, dashboard unit/build/E2E, demo tests/typecheck).
+- The container job cannot be validated locally; no image build or Compose start is
+  claimed.
+
+## Phase 8 decisions added
+- D032 (standalone demo repository with a deterministic untested-function PR), D033
+  (CI matrix with dashboard E2E, demo smoke and image builds).

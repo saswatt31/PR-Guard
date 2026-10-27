@@ -1,0 +1,17 @@
+{
+  "name": "prguard-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Small TypeScript library used to demonstrate PR-Guard on a real pull request.",
+  "scripts": {
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.1.12",
+    "typescript": "5.7.3",
+    "vitest": "4.1.12"
+  }
+}

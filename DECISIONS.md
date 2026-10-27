@@ -371,3 +371,32 @@ accepting dev-only findings (still ships vulnerable tooling in CI), removing cov
 patch may assume its pinned version. Revisit when upgrading Next. Vitest 4 required
 `"type": "module"` in `dashboard/package.json` because the local Node 20.10 cannot
 `require()` the ESM-only `std-env`; the full suite runs on Node 20.10 after that change.
+
+## D032 — The demo repository is standalone and the demo PR adds a new function
+**What:** `demo-repo/` is its own TypeScript/Vitest package with a lockfile and a fully
+tested baseline. `demo-pr.patch` adds `normalizeScore` in a new file and exports it without
+adding tests.
+**Why:** PR-Guard downloads a repository tarball and treats it as the project root; keeping
+the demo standalone matches that contract. A brand-new exported function has zero test
+references and zero baseline coverage, so the gap is unambiguous and the resulting comment
+is easy to evaluate. A fully covered baseline also makes the before/after coverage delta
+meaningful.
+**Alternatives:** Add the demo as a workspace (changes install and coverage paths), modify
+an existing function (changed-line selection demo, but the gap is less obvious), ship an
+already-failing repo (noisy baseline and unclear blame).
+**Limitation:** The demo requires pushing the directory as a separate GitHub repository and
+installing the App. CI only runs its baseline suite; it does not run the PR pipeline.
+
+## D033 — CI builds every artifact and runs offline dashboard E2E
+**What:** The workflow has four jobs: backend (ruff, pytest coverage, sandbox image),
+dashboard (typecheck, Vitest, coverage, build, Chromium Playwright against the mock API),
+demo (install, typecheck, tests) and containers (build sandbox, API and dashboard images).
+Concurrency cancels superseded runs; each job has a timeout.
+**Why:** The Python suite, the Next app and the analyzed demo repo have independent
+dependency trees, so a single job would hide which layer broke. Building all images catches
+standalone-output mistakes without requiring a long-lived Compose stack. The dashboard E2E
+stays deterministic by using its checked-in mock API.
+**Alternatives:** One monolithic job (slower, unclear failures), Compose up in CI (needs
+secrets and a GitHub App), skipping image builds (Dockerfile drift goes unnoticed).
+**Limitation:** The workflow has not been executed here: there is no GitHub remote and no
+Docker daemon. Local runs of the individual commands are the only measured evidence.

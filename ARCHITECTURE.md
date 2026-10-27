@@ -1,9 +1,10 @@
 # Architecture
 
-> Status after Phase 7. The webhook, worker, run processor, agent graph, LLM/config layer,
-> sandbox and Next.js dashboard are implemented. The polished demo and final verification
-> docs are Phase 8–10. Data-flow details and failure modes are expanded in Phase 10; every
-> table and field below already reflects the implemented SQLAlchemy models.
+> Status after Phase 8. The webhook, worker, run processor, agent graph, LLM/config layer,
+> sandbox, Next.js dashboard, demo repository and CI matrix are implemented. Final
+> end-to-end verification and the interview/README docs are Phase 9–10. Data-flow details
+> and failure modes are expanded in Phase 10; every table and field below already reflects
+> the implemented SQLAlchemy models.
 
 ## 1. System view
 
@@ -116,6 +117,15 @@ a view, not a second control plane:
   displayed as text inside `<pre>`, and external links are limited to stored GitHub URLs.
   Dashboard unit/component tests mock `lib/api.ts`; Playwright E2E uses a deterministic
   mock API server and a production Next build.
+
+### Demo repository
+
+`demo-repo/` is a standalone TypeScript/Vitest package used as the reference target. Its
+baseline functions are fully tested; `demo-pr.patch` adds an exported `normalizeScore`
+without a test so the coverage gap is unambiguous. The directory has its own lockfile and
+`.prguard.yml`, and the parent CI runs its tests/typecheck as a smoke test. It is not a
+workspace package, because the pipeline downloads and runs a repository as the project
+root (D032).
 
 ## 3. Data flow for one pull request
 

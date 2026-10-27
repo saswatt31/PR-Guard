@@ -40,7 +40,7 @@ services:
   demo-repo:
     image: node:20-bookworm-slim
     working_dir: /repo
-    command: ["sh", "-lc", "npm ci && npm test -- --run"]
+    command: ["sh", "-lc", "npm ci && npm test"]
     volumes:
       - ./demo-repo:/repo
     profiles: ["demo"]

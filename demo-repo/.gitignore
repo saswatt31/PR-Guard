@@ -1,0 +1,4 @@
+node_modules/
+coverage/
+vitest-results.json
+*.log
