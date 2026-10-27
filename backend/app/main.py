@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.api.routes import router as api_router
 from app.db import Database
 from app.queue.worker import RunProcessor, Worker
 from app.run_processor import RunProcessor as GitHubRunProcessor
@@ -50,6 +51,7 @@ def create_app(
     app.state.processor = processor
     app.state.worker = None
     app.include_router(webhook_router)
+    app.include_router(api_router)
 
     app.add_middleware(
         CORSMiddleware,

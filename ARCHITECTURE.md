@@ -1,9 +1,9 @@
 # Architecture
 
-> Status after Phase 6. The webhook, worker, run processor, agent graph, LLM/config layer
-> and sandbox are implemented. The dashboard and polished demo are Phase 7–8. Data-flow
-> details and failure modes are expanded in Phase 10; every table and field below already
-> reflects the implemented SQLAlchemy models.
+> Status after Phase 7. The webhook, worker, run processor, agent graph, LLM/config layer,
+> sandbox and Next.js dashboard are implemented. The polished demo and final verification
+> docs are Phase 8–10. Data-flow details and failure modes are expanded in Phase 10; every
+> table and field below already reflects the implemented SQLAlchemy models.
 
 ## 1. System view
 
@@ -92,6 +92,31 @@ pipeline runner. Tests use fakes for all five; production uses `GitHubClient`,
 `build_sandbox`, `build_budgeted_llm` and `run_agent_pipeline`. Workspace cleanup is
 unconditional in a `finally` block.
 
+### Dashboard and read-only API
+
+The dashboard is a Next.js 15 App Router application under `dashboard/`. It is deliberately
+a view, not a second control plane:
+
+- `backend/app/api/routes.py` exposes four GET-only endpoints: `/api/runs` (newest first,
+  paginated, optional status/repo filters), `/api/runs/{id}` (run plus steps, tests,
+  sandbox executions and review), `/api/stats` (aggregate counters) and `/api/demo`
+  (demo flag/run count). There is no create, retry, delete or comment endpoint.
+- Pages are server components with `dynamic = "force-dynamic"`. They call `getRuns`,
+  `getRun` and `getStats` from `dashboard/lib/api.ts`; the API base URL is read from
+  `PRGUARD_API_URL` (server-to-server) and falls back to `NEXT_PUBLIC_API_URL` for local
+  development. Browser code does not fetch the API, so the API does not need a public
+  CORS origin for dashboard reads.
+- `/api/runs` uses `limit`/`offset` from the URL with bounds (1–100, non-negative), a
+  validated status enum and a case-insensitive, escaped repository substring. The page
+  clamps the same values so a hand-edited URL cannot request an unbounded page.
+- The detail view shows verified test code, unverified names/reasons, sandbox commands and
+  captured output, the step timeline, review text, effective config and cost/token
+  metadata. Empty states distinguish "no run", "no gap" and "no execution recorded".
+- Rendering is read-only by construction: React escapes all run values, test code is
+  displayed as text inside `<pre>`, and external links are limited to stored GitHub URLs.
+  Dashboard unit/component tests mock `lib/api.ts`; Playwright E2E uses a deterministic
+  mock API server and a production Next build.
+
 ## 3. Data flow for one pull request
 
 1. GitHub sends `pull_request` (`opened` or `synchronize`) with an HMAC signature.
@@ -116,6 +141,8 @@ unconditional in a `finally` block.
 9. The review node produces Markdown commentary. The run processor persists results and
    posts one comment containing verified tests only, coverage delta, costs and unverified
    functions. The dashboard reads the same persisted state.
+10. The dashboard server fetches `GET /api/runs`, `/api/runs/{id}` and `/api/stats` from
+    the FastAPI process and renders the result. No dashboard action mutates a run.
 
 ## 4. Sandbox execution boundary
 

@@ -298,3 +298,76 @@ per test (noisy and harder to update), inline review comments (different API and
 anchors), omit code content (users must open the dashboard to inspect the test).
 **Limitation:** A crash between GitHub accepting the comment and the local `comment_id`
 commit can produce a duplicate on retry. There is no comment listing/update endpoint yet.
+
+## D027 — The dashboard API is read-only
+**What:** `backend/app/api/routes.py` exposes only `GET /api/runs`, `GET /api/runs/{id}`,
+`GET /api/stats` and `GET /api/demo`. The Next.js app fetches these from server components.
+No endpoint can create, retry, delete, edit or comment on a run.
+**Why:** Writes already belong to the webhook and worker; adding a second write path would
+duplicate idempotency, authorization and state-transition logic. An unauthenticated
+observability surface is much easier to reason about when it cannot change billing spend,
+post to GitHub or execute code.
+**Alternatives:** Full admin CRUD (needs authentication and audit logging), direct SQLite
+access from Next.js (couples deployments and bypasses API validation), tRPC (extra layer
+for four GET endpoints).
+**Limitation:** There is no retry button or manual approval flow. Recovery still requires
+the worker/operator path.
+
+## D028 — Filtering and pagination are validated at both edges
+**What:** The API accepts `limit` 1–100, non-negative `offset`, a `RunStatus` enum and a
+255-character repo substring. The repo match is case-insensitive and escapes SQL wildcard
+characters. The dashboard page independently clamps `limit`/`offset` and ignores unknown
+status values before calling the API.
+**Why:** A hand-edited query string should not be able to request the whole database or
+turn a repository name into a wildcard scan. Repeating cheap validation in the UI keeps
+error pages out of normal navigation and gives the API a hard contract for other clients.
+**Alternatives:** Cursor pagination (better for huge histories, more UI state), client-side
+filtering (downloads everything), no repo search (weaker demo).
+**Limitation:** `OFFSET` pagination gets slower as the table grows; a production deployment
+should move to a cursor or add an index-backed search service.
+
+## D029 — The dashboard ships as a standalone, non-root Next.js image
+**What:** `dashboard/Dockerfile` builds with `npm ci`, emits Next standalone output and
+copies only the standalone server plus static assets into a `node:20-alpine` runner. The
+runner uses uid/gid 1001 and `node server.js`; `outputFileTracingRoot` pins tracing to the
+dashboard directory so a parent lockfile cannot widen the bundle.
+**Why:** The standalone image is much smaller than copying `node_modules`, and pinning the
+tracing root avoids the multi-lockfile warning/build contamination observed when the
+workspace sits under a directory with another `package-lock.json`. Running as a non-root
+user matches the rest of the project's container posture.
+**Alternatives:** `next start` with full `node_modules` (larger, requires the Next CLI),
+static export (the pages need runtime API reads), Vercel (out of scope for the Compose demo).
+**Limitation:** Local E2E still uses `next start` (the standalone server needs a manual
+static-copy step that the Dockerfile performs); the Docker image itself was not built
+because Docker is unavailable on this machine.
+
+## D030 — Dashboard E2E uses a deterministic mock API
+**What:** Playwright starts `dashboard/e2e/mock-api.mjs` on port 4100 and the production
+Next build on port 3100. The mock serves the exact response shapes for runs, detail, stats
+and demo, including filtering and a 404. Three Chromium tests cover overview stats/filtering,
+detail evidence and the not-found page.
+**Why:** E2E should fail for UI regressions, not for an empty database, a missing webhook or
+an unavailable LLM. A checked-in mock makes the suite offline and reproducible. The backend
+has separate API tests against the real SQLAlchemy models.
+**Alternatives:** Run FastAPI with a seeded SQLite file (heavier, still needs process
+orchestration), intercept fetches in the browser (the dashboard fetches server-side, so
+`page.route` cannot see it), skip E2E entirely (loses navigation coverage).
+**Limitation:** This is not a live integration test. Next.js streams dynamic routes, so the
+not-found UI is served with HTTP 200 plus a `noindex` hint rather than a 404 status; the E2E
+asserts the UI and hint instead of the status code.
+
+## D031 — Dev-tool dependencies were upgraded and PostCSS pinned
+**What:** The dashboard uses Vitest 4.1.12, `@vitest/coverage-v8` 4.1.12, Vite 6.4.5 and
+Playwright 1.64.1. An npm `overrides` entry pins PostCSS to 8.5.32 for Next 15's exact
+8.4.31 dependency. `npm audit` reports zero vulnerabilities.
+**Why:** The initial install reported critical Vitest/Tinypool and high Vite/Playwright
+advisories. Upgrading within the existing major avoided a Next 16 migration; PostCSS 8.5 is
+API-compatible with Next 15's usage and clears the remaining advisory. The full test,
+coverage, typecheck and build suites were rerun after the upgrade.
+**Alternatives:** `npm audit fix --force` (moves to Next 16 and Vitest 5, both breaking),
+accepting dev-only findings (still ships vulnerable tooling in CI), removing coverage
+(reduces evidence).
+**Limitation:** The PostCSS override is an explicit compatibility bet: a future Next 15
+patch may assume its pinned version. Revisit when upgrading Next. Vitest 4 required
+`"type": "module"` in `dashboard/package.json` because the local Node 20.10 cannot
+`require()` the ESM-only `std-env`; the full suite runs on Node 20.10 after that change.

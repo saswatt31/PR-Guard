@@ -137,10 +137,14 @@ class Run(Base):
         back_populates="run", cascade="all, delete-orphan", order_by="AgentStep.sequence"
     )
     tests: Mapped[list[GeneratedTest]] = relationship(
-        back_populates="run", cascade="all, delete-orphan"
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="GeneratedTest.created_at",
     )
     sandbox_runs: Mapped[list[SandboxExecution]] = relationship(
-        back_populates="run", cascade="all, delete-orphan"
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="SandboxExecution.created_at",
     )
     review: Mapped[CodeReview | None] = relationship(
         back_populates="run", uselist=False, cascade="all, delete-orphan"

@@ -108,6 +108,27 @@ class RunDetail(RunSummary):
     review: CodeReviewOut | None
 
 
+class RunList(BaseModel):
+    items: list[RunSummary]
+    total: int
+    limit: int
+    offset: int
+
+
+class RunStats(BaseModel):
+    total_runs: int
+    queued: int
+    running: int
+    succeeded: int
+    failed: int
+    skipped: int
+    tests_generated: int
+    tests_verified: int
+    total_cost_usd: float
+    avg_coverage_delta: float | None
+    avg_duration_ms: int | None
+
+
 class DemoInfo(BaseModel):
     enabled: bool
     run_count: int

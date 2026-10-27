@@ -404,3 +404,102 @@
 ## Phase 6 decisions added
 - D024 (best-effort baseline at PR head), D025 (injectable processor and temporary
   workspace), D026 (persist before comment, one verified-only comment).
+
+## Phase 7 - Read-only run API and Next.js dashboard
+
+**Goal:** turn persisted runs into an inspectable product surface without adding a second
+write path.
+
+**Backend API**
+- Added `backend/app/api/routes.py` with `GET /api/runs`, `GET /api/runs/{run_id}`,
+  `GET /api/stats` and `GET /api/demo`. The router is included in `create_app`.
+- `/api/runs` returns newest-first summaries with bounded `limit`/`offset`, a validated
+  `RunStatus` filter and a case-insensitive, wildcard-escaped repo substring.
+- Detail responses embed steps, generated tests, sandbox executions and review through
+  `selectinload`, so the dashboard needs one request per page.
+- Stats are SQL aggregates over run status and counters; they return `None`/zero honestly
+  when no runs exist.
+- Added `RunList`, `RunDetail`, `RunStats` and `DemoInfo` response models to
+  `backend/app/schemas.py`; all are `from_attributes` projections of the existing models.
+- The API is GET-only by design (D027); there is no retry, delete, edit or comment route.
+
+**Dashboard**
+- Next.js 15 App Router app in `dashboard/` with React 19 server components and no browser
+  API client. Overview cards, run table, status/repo filters, pagination, empty/error
+  states, and a detail page for verified tests, unverified reasons, sandbox evidence,
+  agent trace, review, metadata and effective config.
+- Shared components: `MetricCard`, `RunTable`, `StatusBadge`, `RunsFilter`, `Pagination`,
+  `RunDetailView`; formatting helpers in `lib/format.ts`; typed API client in `lib/api.ts`.
+- The server fetches `PRGUARD_API_URL` with `cache: "no-store"` and treats an unreachable
+  API as a visible error panel, not a silent empty dashboard.
+- 29 Vitest/RTL tests cover formatting, API error paths, filter/table rendering, detail
+  evidence, empty/failure states and step-chip caps. Coverage: **99.21% statements,
+  91.97% branches, 100% functions, 100% lines** (thresholds 90/85/90/90).
+- Added a multi-stage standalone `dashboard/Dockerfile` (non-root uid 1001) and
+  `.dockerignore`. `outputFileTracingRoot` pins tracing to the dashboard directory.
+- Added Playwright config, a deterministic mock API and three Chromium E2E tests
+  (overview/filtering, verified detail, not-found). **3 passed** against a production
+  `next build`. The E2E suite is offline and does not claim live backend integration (D030).
+- `npm run typecheck` and `npm run build` pass. `npm audit` reports **0 vulnerabilities**
+  after upgrading Vitest/Vite/Playwright and pinning PostCSS (D031).
+
+**Verification actually run**
+- Backend: **421 passed, 0 failed, 1 skipped**, **94.98%** combined statement/branch
+  coverage over `backend/app` (Python 3.12.1 locally; CI/Docker target 3.11). The skipped
+  test is the real-Docker integration test because no daemon is installed.
+- `ruff check` and `ruff format --check` are clean.
+- Dashboard: `npm test` **29 passed**, `npm run test:coverage` meets thresholds,
+  `npm run typecheck` passes, `npm run build` emits the standalone build, and
+  `npx playwright test` **3 passed** using Chromium installed in this environment.
+- The Docker dashboard image was **not built** and Compose was **not run**: Docker is still
+  unavailable here. No container or live GitHub/LLM claim is made.
+
+**Files to read**
+- `backend/app/api/routes.py` — read-only endpoints and query validation.
+- `backend/app/schemas.py` — list/detail/stats response models.
+- `backend/tests/test_api.py` — filtering, pagination, 404, empty stats and demo flag.
+- `dashboard/app/page.tsx` — overview composition and error state.
+- `dashboard/app/runs/[id]/page.tsx` — detail route and 404 mapping.
+- `dashboard/components/RunDetailView.tsx` — evidence and honest empty states.
+- `dashboard/lib/api.ts` — typed server-side client and URL normalisation.
+- `dashboard/playwright.config.ts`, `dashboard/e2e/` — offline E2E harness.
+- `dashboard/Dockerfile` — standalone production image.
+
+**Interview questions**
+1. Why is the dashboard API read-only? (Writes already have an idempotent owner: webhook +
+   worker. A second write path would need auth, audit and state-machine duplication, and an
+   unauthenticated UI must not be able to spend LLM money or post to GitHub.)
+2. Why server components instead of a client-side fetch? (The API can stay private, the
+   first paint already has data, and there is no browser token or CORS surface. Trade-off:
+   every page is dynamic and the dashboard server needs network reachability to FastAPI.)
+3. Why repeat pagination validation in both the page and the API? (The API is the hard
+   contract for any client; the page clamp prevents avoidable 422 error pages from a
+   hand-edited URL. Defense in depth for a cheap invariant.)
+4. How do you avoid N+1 queries on the detail page? (`selectinload` loads steps, tests,
+   sandbox runs and review in batches; one detail request renders the whole page.)
+5. What does the dashboard deliberately not show? (Prompts, raw source beyond generated
+   test content, secrets, installation tokens, full baseline logs. It shows evidence and
+   public config, not the trusted process's private inputs.)
+6. Why does the not-found page return HTTP 200? (The dynamic route streams a loading shell
+   before `notFound()` runs, so Next.js cannot change the status; it emits `noindex` and a
+   404 UI. A non-streaming route or edge middleware would be needed for a true 404.)
+7. What is the biggest dashboard security gap? (No authentication. It must sit behind SSO
+   or a private network because it exposes repository names, test code and sandbox logs.)
+8. How is E2E kept deterministic? (A checked-in mock API with fixed runs and filters, a
+   production Next build, and Playwright-managed servers. It tests the UI contract, not the
+   Python API; backend tests cover the real database queries.)
+
+**Simplified / mocked**
+- Dashboard unit/component tests mock `lib/api.ts`; E2E uses `e2e/mock-api.mjs`, not FastAPI
+  and not a live GitHub App. The real API is covered by `backend/tests/test_api.py`.
+- No authentication/authorization layer exists on `/api` or the dashboard. This is an
+  internal demo surface and is documented as such.
+- The dashboard Dockerfile was written but not built or Compose-tested because Docker is
+  unavailable. Local E2E used `next start`; the standalone `server.js` path is only used in
+  the Dockerfile.
+- No live LLM or GitHub calls were made in this phase.
+
+## Phase 7 decisions added
+- D027 (read-only API), D028 (validated filtering/pagination at both edges), D029
+  (standalone non-root dashboard image), D030 (offline Playwright E2E), D031 (dev-tool
+  upgrades and PostCSS pin).

@@ -5,12 +5,12 @@ Both are untrusted. The design assumes a hostile repository and a prompt-injecti
 attempt in the diff, and it refuses to post a test unless the Docker sandbox executed it
 successfully.
 
-> Status: Phase 6. The webhook, worker, run processor, `.prguard.yml`, LLM, generated-test
-> static policy, sandbox controls and PR comment are implemented. Docker is not installed
-> on the build machine, so real-container tests are reported as skipped, never as passed.
-> Live GitHub App, Groq and Anthropic calls are not claimed; processor tests use a fake
-> GitHub client, adapter tests use `httpx.MockTransport`, and the end-to-end pipeline uses
-> `FakeLLM`.
+> Status: Phase 7. The webhook, worker, run processor, `.prguard.yml`, LLM, generated-test
+> static policy, sandbox controls, PR comment and read-only dashboard API/UI are implemented.
+> Docker is not installed on the build machine, so real-container tests are reported as
+> skipped, never as passed. Live GitHub App, Groq and Anthropic calls are not claimed;
+> processor tests use a fake GitHub client, adapter tests use `httpx.MockTransport`, and the
+> end-to-end pipeline uses `FakeLLM`. Dashboard E2E uses a mock API, not a live backend.
 
 ## 1. Trust boundaries
 
@@ -39,6 +39,27 @@ successfully.
   accepts a repository path, command, URL or token from an anonymous caller.
 - **Production secret check:** the app refuses to start with the default webhook secret
   when `APP_ENV=production`.
+
+### Dashboard data exposure
+
+The dashboard has no authentication in this build. Treat it as an internal observability
+surface and put it behind SSO, a VPN or a reverse-proxy allow-list before deployment. It
+renders repository names, PR numbers, commit SHAs, sender logins, generated test code,
+captured sandbox output and stored review text. That content is already visible to the
+repository's collaborators, but it should not be indexed or exposed anonymously.
+
+- The page fetches through `PRGUARD_API_URL` from the Next.js server, so the FastAPI
+  service can stay on a private network. `NEXT_PUBLIC_API_URL` is only used for the
+  documentation link and local fallback; it must never contain a credential.
+- React escapes all values by default. Generated code and sandbox logs are rendered as
+  text inside `<pre>`/`<code>` blocks, never with `dangerouslySetInnerHTML`.
+- External links come from stored GitHub URLs and open with `rel="noreferrer"`.
+- The CORS default allows `http://localhost:3000` for local development. It is not an
+  authorization control; the API itself is unauthenticated and should not be publicly
+  reachable.
+- The Playwright suite runs against `dashboard/e2e/mock-api.mjs`, a deterministic local
+  fixture server. It proves rendering and navigation, not access control or FastAPI
+  integration.
 
 ## 3. Sandbox boundary
 
