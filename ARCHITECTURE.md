@@ -358,7 +358,7 @@ The following were executed on the development machine:
 | Dashboard demo Playwright (desktop + mobile) | 4 passed, zero backend or `/api/` requests |
 | `demo-repo` tests / coverage / typecheck | 11 passed, 100% / clean |
 | `npm audit` (dashboard, demo-repo) | 0 vulnerabilities |
-| Full-history gitleaks scan | 10 commits, 940,184 bytes, no leaks |
+| Full-history gitleaks scan | 14 commits, 1,058,175 bytes through `5f1a474`, no leaks |
 | Local smoke | succeeded: 1 verified test, 78.57% → 100.00%, 2 FakeLLM calls, 1,294 tokens, 9,246 ms |
 | Demo capture | 1 run, 6 steps, 1 generated/verified test, sanitized JSON |
 

@@ -828,5 +828,5 @@ screen recording exists; the guide defines the shot list and embed location inst
 
 **Numbers.** Backend 426 passed / 1 skipped / 95.16%; dashboard 34 passed / 98.18%
 statements / 92.30% branches / 100% functions / 99.25% lines; demo E2E 4 passed; live-mode
-E2E 3 passed; secret scan 10 commits / 940,184 bytes / 0 leaks; `npm audit` 0.
+E2E 3 passed; secret scan 14 commits / 1,058,175 bytes through `5f1a474` / 0 leaks; `npm audit` 0.
 

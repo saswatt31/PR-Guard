@@ -34,8 +34,8 @@ produced it.
   lint/tests/coverage, the demo build, live-mode E2E, the no-backend demo E2E and builds all
   three container images; **all four jobs pass on `fd6b16e`** (run `40706768732`). The capture
   exporter strips local paths and secret-named keys and refuses output that matches a secret
-  pattern; a full-history gitleaks scan covered **10 commits / 940,184 bytes with no leaks**,
-  and `npm audit` reports **0 vulnerabilities**.
+  pattern; a full-history gitleaks scan through `5f1a474` covered **14 commits / 1,058,175
+  bytes with no leaks**, and `npm audit` reports **0 vulnerabilities**.
   *Source: `.github/workflows/ci.yml`, `scripts/capture_demo_data.py`, `README.md`.*
 
 ## 60-second pitch
@@ -131,7 +131,7 @@ would rather show a smaller, labelled artifact than imply a live service exists.
 | 4 demo E2E, zero backend calls | `cd dashboard && npm run test:e2e:demo`; `e2e/demo/demo.spec.ts` |
 | 3 live-mode E2E | `cd dashboard && npm run test:e2e`; mock API |
 | 1 verified test, 78.57% → 100.00%, 9,246 ms, 2 calls, 1,294 tokens | `scripts/capture_demo_data.py`; committed `dashboard/public/demo-data/` |
-| 10 commits / 940,184 bytes / 0 leaks | `gitleaks git . --log-opts=--all` (local gitleaks 8.30.1) |
+| 14 commits / 1,058,175 bytes / 0 leaks (through `5f1a474`) | `gitleaks git . --log-opts=--all` (local gitleaks 8.30.1) |
 | 0 npm vulnerabilities | `npm audit` in `dashboard/` and `demo-repo/` |
 | 4 green CI jobs, 3 images built | GitHub Actions run `40706768732` on commit `fd6b16e` |
 | Docker execution not verified | real-daemon test is skipped; no daemon on the build machine; CI only builds images |

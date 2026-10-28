@@ -72,7 +72,7 @@ GitHub Actions on `ubuntu-latest`.
 | Demo repository | **11 passed**, 100% statements/branches/functions/lines |
 | Demo capture | 1 run, 1 verified test, 6 steps, 78.57% → 100.00%, 9,246 ms, 2 `FakeLLM` calls, 1,294 tokens |
 | `vercel build --prod` with demo flag | **Passed** |
-| Full-history secret scan | **Clean**: 10 commits, 940,184 bytes, no leaks |
+| Full-history secret scan | **Clean**: 14 commits, 1,058,175 bytes through `5f1a474` |
 | `npm audit` (dashboard, demo-repo) | 0 vulnerabilities |
 | GitHub Actions CI (commit `fd6b16e`) | **Passed**: backend, dashboard, demo repo and container images |
 | Docker image builds (CI) | **Passed**: sandbox, API and dashboard images |

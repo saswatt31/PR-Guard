@@ -363,7 +363,7 @@ Docker socket.
 | Demo repo | 11 tests, 100% statements/branches/functions/lines |
 | Demo capture | 1 run, 1 verified test, 6 steps, 9,246 ms, 2 FakeLLM calls, 1,294 tokens, $0.00 |
 | Local smoke | 1 verified test, 78.57% → 100.00%, 2 FakeLLM calls, 1,294 tokens |
-| Secret scan | 10 commits, 940,184 bytes, 0 leaks |
+| Secret scan | 14 commits, 1,058,175 bytes through `5f1a474`, 0 leaks |
 | LLM caps | 24 calls / 120k tokens / $0.75 defaults; `.prguard.yml` can tighten |
 | Fixer cap | 3 rounds max (demo config: 2) |
 | Webhook body cap | 10 MB; tarball cap 50 MB; extracted cap 200 MB / 20k files |
