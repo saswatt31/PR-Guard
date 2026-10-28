@@ -8,11 +8,13 @@ matters, the failure handling, and the tests that exercise it.
 >
 > - **Executed locally:** the Python suite, the Next.js suite/build/E2E, the demo suite and
 >   the local smoke were run on the development machine.
+> - **Executed in CI:** GitHub Actions ran the backend, dashboard and demo jobs and built
+>   all three images (run `40706768732`, commit `fd6b16e`).
 > - **Mocked:** GitHub, LLM providers and the Docker daemon are replaced by fakes or
 >   `httpx.MockTransport` in tests.
-> - **Not verified:** no real Docker container, live GitHub App installation, live Groq or
->   Anthropic call, or GitHub Actions run has been executed. Functions that depend on
->   those services are described as designed, not as proven end to end.
+> - **Not verified:** no real Docker container was started, no live GitHub App installation,
+>   live Groq/Anthropic call or live webhook delivery has been executed. Functions that
+>   depend on those services are described as designed, not as proven end to end.
 >
 > Latest measured numbers: backend **426 passed, 1 skipped, 95.16%**; dashboard **34
 > passed**, 98.18% statements / 92.30% branches / 100% functions / 99.25% lines; demo
@@ -846,11 +848,12 @@ GitHub API calls or provider LLMs.
 
 ## What is not proven
 
-- No real Docker container, image build or Compose stack has run here.
+- Image builds are proven by CI, but no real Docker container or Compose stack has been
+  started here, and the real-daemon test is skipped.
 - No live GitHub App webhook, installation token, tarball download or comment has run here.
 - No live Groq/Anthropic call has run here; adapter tests use `httpx.MockTransport`.
-- The GitHub Actions workflow has not executed (no remote run yet).
-- The only end-to-end run is the local smoke, which uses `LocalSandboxRunner`, `FakeLLM`
-  and a fake GitHub client; the public demo replays that run's sanitized JSON.
+- CI runs four jobs but does not execute a container, a live webhook or a provider call.
+- The only end-to-end pipeline run is the local smoke, which uses `LocalSandboxRunner`,
+  `FakeLLM` and a fake GitHub client; the public demo replays that run's sanitized JSON.
 - No screen recording exists yet; `docs/DEMO_RECORDING.md` defines the shot list and embed
   location instead of embedding an empty player.

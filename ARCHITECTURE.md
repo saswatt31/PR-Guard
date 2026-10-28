@@ -5,8 +5,9 @@
 > documentation are implemented. The local smoke executed the real pipeline with real
 > npm/Vitest and SQLite, a fake GitHub client, `FakeLLM` and `LocalSandboxRunner`; it is
 > **not** Docker or live-provider verification. That run is exported to committed JSON and
-> replayed by the public Vercel dashboard with no backend. Docker is unavailable on the build
-> machine, so container execution, image builds, Compose and GitHub Actions remain
+> replayed by the public Vercel dashboard with no backend. GitHub Actions now runs four green
+> jobs, including successful builds of all three images. Docker is still unavailable on the
+> development machine, so container execution, the real-daemon test and Compose remain
 > unverified. Every table and field below reflects the implemented SQLAlchemy models.
 
 ## 1. System view
@@ -361,6 +362,16 @@ The following were executed on the development machine:
 | Local smoke | succeeded: 1 verified test, 78.57% → 100.00%, 2 FakeLLM calls, 1,294 tokens, 9,246 ms |
 | Demo capture | 1 run, 6 steps, 1 generated/verified test, sanitized JSON |
 
+GitHub Actions (run `40706768732`, commit `fd6b16e`) executed the same checks on
+`ubuntu-latest` and additionally built the sandbox, API and dashboard images:
+
+| Job | Result |
+| --- | --- |
+| Backend (pytest + coverage, ruff, sandbox image) | passed |
+| Dashboard (typecheck, Vitest/coverage, build, 3 E2E, demo build, 4 demo E2E) | passed |
+| Demo repo (install, typecheck, 11 tests) | passed |
+| Container images (sandbox, API, dashboard) | passed |
+
 The local smoke (`backend/scripts/demo_smoke.py`) is the only end-to-end execution. It uses
 real npm/Vitest and real persistence, but a fake GitHub client, `FakeLLM` and
 `LocalSandboxRunner`. `scripts/capture_demo_data.py` exports that database through the same
@@ -370,13 +381,12 @@ described as a local FakeLLM demo.
 
 Not verified in this environment:
 
-- Docker container creation, image builds, Compose, and the real-daemon integration test
-  (the test is skipped, never reported as passed).
+- Docker container creation from the built images, Compose, and the real-daemon integration
+  test (the test is skipped, never reported as passed). Image construction is verified by CI;
+  execution is not.
 - Live GitHub App webhook delivery, installation tokens, tarball download and comment
   posting.
 - Live Groq or Anthropic calls; adapters use `httpx.MockTransport`.
-- GitHub Actions execution; the workflow parses, but there is no remote and no Docker
-  daemon here. Local equivalents of each job were run individually.
 
 These gaps are called out in the README, `SECURITY.md`, `INTERVIEW_PREP.md` and
 `PROGRESS.md` so no mocked path is presented as production evidence.

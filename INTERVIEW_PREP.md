@@ -297,8 +297,11 @@ but not built here because Docker is unavailable; that is a verification gap, no
 Four jobs: backend (ruff check/format, pytest coverage, sandbox image), dashboard (npm ci,
 typecheck, Vitest/coverage, live-mode Playwright against the mock API, demo build, no-backend
 demo Playwright on desktop/mobile), demo (install, typecheck, tests) and containers (build
-sandbox/API/dashboard images). Timeouts and concurrency cancellation are set. The workflow
-parses locally but has never run because there is no remote run yet.
+sandbox/API/dashboard images). Timeouts and concurrency cancellation are set. All four jobs
+passed on `fd6b16e` (run `40706768732`). The first run caught a real bug: the Dockerfile set
+`NEXT_OUTPUT_STANDALONE=1` while the config only accepted `"true"`, so the dashboard image
+failed at the standalone copy. CI did its job; the fix accepts both spellings and the rerun
+is green.
 
 ### Judgment and failure modes
 
@@ -370,11 +373,12 @@ Docker socket.
 
 Say this plainly:
 
-- Docker was **not** available; the real-container test is skipped, no image build or
-  Compose run is claimed.
+- Docker was **not** available locally; the real-container test is skipped and no Compose
+  run is claimed. CI built all three images, so image construction is verified separately
+  from container execution.
 - No live GitHub App, Groq or Anthropic call was made. GitHub is faked in processor tests
   and the smoke; adapters use mocked HTTP.
-- GitHub Actions has **not** run. Local equivalents were run individually.
+- GitHub Actions runs four jobs and all four passed on `fd6b16e` (run `40706768732`).
 - Dashboard E2E uses a mock API, not live FastAPI. The public demo uses a separate static
   capture and a no-backend Playwright suite.
 - The screenshots and smoke are a **local FakeLLM demo**, not a production run.

@@ -31,7 +31,8 @@ produced it.
   `dashboard/coverage/coverage-summary.json` (generated locally by `npm run test:coverage`).*
 
 - **Added CI, sanitization and supply-chain checks before calling it done.** CI runs backend
-  lint/tests/coverage, the demo build, live-mode E2E and the no-backend demo E2E. The capture
+  lint/tests/coverage, the demo build, live-mode E2E, the no-backend demo E2E and builds all
+  three container images; **all four jobs pass on `fd6b16e`** (run `40706768732`). The capture
   exporter strips local paths and secret-named keys and refuses output that matches a secret
   pattern; a full-history gitleaks scan covered **10 commits / 940,184 bytes with no leaks**,
   and `npm audit` reports **0 vulnerabilities**.
@@ -106,10 +107,11 @@ would rather show a smaller, labelled artifact than imply a live service exists.
 
 ## Real limitations to say out loud
 
-- **Docker is unverified here.** No container, image build or Compose run; the real-daemon
-  test is skipped.
+- **Docker execution is unverified.** CI builds the sandbox, API and dashboard images, but
+  no container or Compose stack has been started and the real-daemon test is skipped.
 - **No live GitHub or provider calls.** Adapters use fakes and `httpx.MockTransport`.
-- **No GitHub Actions run yet.** The workflow is committed and the local equivalents pass.
+- **CI is green but narrow.** Four jobs cover lint/tests/builds/image builds; none runs a
+  live webhook, a model call or `docker run`.
 - **The public demo is a replay of one sanitized run**, not a live service. It has no
   authentication because it contains only the `acme/prguard-demo` fixture.
 - **`LocalSandboxRunner` is not a security boundary.** It runs Node as the host user with
@@ -131,4 +133,5 @@ would rather show a smaller, labelled artifact than imply a live service exists.
 | 1 verified test, 78.57% → 100.00%, 9,246 ms, 2 calls, 1,294 tokens | `scripts/capture_demo_data.py`; committed `dashboard/public/demo-data/` |
 | 10 commits / 940,184 bytes / 0 leaks | `gitleaks git . --log-opts=--all` (local gitleaks 8.30.1) |
 | 0 npm vulnerabilities | `npm audit` in `dashboard/` and `demo-repo/` |
-| Docker not verified | real-daemon test is skipped; no daemon on the build machine |
+| 4 green CI jobs, 3 images built | GitHub Actions run `40706768732` on commit `fd6b16e` |
+| Docker execution not verified | real-daemon test is skipped; no daemon on the build machine; CI only builds images |

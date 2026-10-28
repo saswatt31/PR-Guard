@@ -786,3 +786,47 @@ where Docker is not installed.
   documented results distinguish executed, mocked and unverified paths).
 - D037 (repo + head SHA idempotency is a database unique constraint; the handler's
   pre-check is an optimisation, and the losing side of a race returns the existing run).
+
+## Phase 11 — public demo, provenance and green CI
+
+**Goal.** Ship a clickable public demo that is honest about what it is, add recording and
+resume material, and get the repository's first remote CI run.
+
+**What changed (commit `9f7ecfd`).**
+- `DEMO_AUDIT.md` inventories every dashboard data access and environment variable before
+  the change.
+- `NEXT_PUBLIC_DEMO_MODE=true` routes `dashboard/lib/api.ts` to `dashboard/lib/demo.ts`,
+  which imports committed JSON at build time. No runtime fetch, API URL or secret.
+- A permanent `DemoBanner` names the capture date, commit, `FakeLLM`, fake GitHub and
+  `LocalSandboxRunner`; live-only actions are disabled with explanations.
+- `scripts/capture_demo_data.py` runs the real local smoke, serialises SQLite through the
+  API's Pydantic models, sanitizes paths/secrets and writes a manifest with provenance.
+- Vitest covers the loader, banner, filters, pagination, error/empty states and disabled
+  actions; a separate Playwright suite runs desktop + mobile and fails on any `/api/` request.
+- README, `ARCHITECTURE.md`, `CORE_FUNCTIONS.md`, `INTERVIEW_PREP.md`, `RESUME_BULLETS.md`,
+  `DECISIONS.md` (D038–D043) and `docs/DEMO_RECORDING.md` were rewritten around the new
+  evidence boundary.
+- Vercel project `pr-guard-dashboard` builds only `dashboard/` with the demo flag; the
+  deployed site was checked in a browser with zero backend requests.
+
+**Recapture (commit `67e298e`).** The final capture is run
+`555263ab-e51a-4e4c-809d-ae3f2258d903` at code commit `9f7ecfd`: 1 verified test,
+78.57% → 100.00%, 9,246 ms, 2 `FakeLLM` calls, 1,294 tokens, $0.00, `git_dirty=false`.
+Screenshots and every duration number were refreshed from it.
+
+**CI (commit `fd6b16e`, run `40706768732`).** All four jobs passed: backend (ruff, 426 tests,
+sandbox image), dashboard (typecheck, 34 Vitest, 3 live-mode E2E, demo build, 4 demo E2E),
+demo repo (11 tests) and container images (sandbox, API, dashboard). The first container run
+failed and caught a real configuration bug: the Dockerfile exported
+`NEXT_OUTPUT_STANDALONE=1` while `next.config.ts` only accepted `"true"`, so the runner
+stage's `COPY .next/standalone` had nothing to copy. The config now accepts both values and
+the rerun is green. This is the value of CI: the image build had never been exercised.
+
+**Still not verified.** No container was started, the real-Docker test is skipped, Compose
+never ran, and no live GitHub App, webhook, provider call or real PR comment exists. No
+screen recording exists; the guide defines the shot list and embed location instead.
+
+**Numbers.** Backend 426 passed / 1 skipped / 95.16%; dashboard 34 passed / 98.18%
+statements / 92.30% branches / 100% functions / 99.25% lines; demo E2E 4 passed; live-mode
+E2E 3 passed; secret scan 10 commits / 940,184 bytes / 0 leaks; `npm audit` 0.
+

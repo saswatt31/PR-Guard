@@ -1,9 +1,10 @@
 # PR-Guard
 
+[![CI](https://github.com/saswatt31/PR-Guard/actions/workflows/ci.yml/badge.svg)](https://github.com/saswatt31/PR-Guard/actions/workflows/ci.yml)
 ![Backend tests](https://img.shields.io/badge/backend_tests-426_passed_%7C_1_skipped-brightgreen)
 ![Dashboard tests](https://img.shields.io/badge/dashboard_tests-34_passed-brightgreen)
 ![Demo](https://img.shields.io/badge/demo-static_JSON_%7C_no_backend-2ea44f)
-![Docker](https://img.shields.io/badge/docker-not_verified-critical)
+![Docker](https://img.shields.io/badge/docker-images_built%2C_daemon_unverified-critical)
 
 **An LLM writes the test. A sandbox decides whether it ships.**
 
@@ -58,7 +59,8 @@ sandbox mode, run configuration and caveats. No number in the demo is hand-writt
 
 ## Verification, honestly
 
-Measured on 2026-10-28 on the development machine (Windows, Python 3.12.1, Node 20).
+Measured on 2026-10-28 on the development machine (Windows, Python 3.12.1, Node 20) and in
+GitHub Actions on `ubuntu-latest`.
 
 | Check | Result |
 | --- | --- |
@@ -72,16 +74,18 @@ Measured on 2026-10-28 on the development machine (Windows, Python 3.12.1, Node 
 | `vercel build --prod` with demo flag | **Passed** |
 | Full-history secret scan | **Clean**: 10 commits, 940,184 bytes, no leaks |
 | `npm audit` (dashboard, demo-repo) | 0 vulnerabilities |
-| **Docker sandbox execution** | **Not verified**: no daemon; real-daemon test skipped |
-| **Docker image builds / Compose** | **Not verified**: committed but unexecuted |
+| GitHub Actions CI (commit `fd6b16e`) | **Passed**: backend, dashboard, demo repo and container images |
+| Docker image builds (CI) | **Passed**: sandbox, API and dashboard images |
+| **Docker sandbox execution** | **Not verified**: no local daemon; real-daemon test skipped |
+| **Docker Compose** | **Not verified**: committed, never started |
 | **Live GitHub App** | **Not verified**: no installation or credentials |
 | **Live Groq / Anthropic** | **Not verified**: no provider keys |
-| **GitHub Actions** | **Not run**: local equivalents only, no remote push yet |
 
-The badges above are static, not live CI status. The skipped test is the real-Docker
-integration test; it is reported as skipped, never as passed. `LocalSandboxRunner` reports
-`network_disabled=False` because it cannot enforce isolation. Do not read its success as
-container evidence.
+The CI badge is live; the other badges are static and match the numbers below. The skipped
+test is the real-Docker integration test; it is reported as skipped, never as passed.
+`LocalSandboxRunner` reports `network_disabled=False` because it cannot enforce isolation.
+Do not read its success as container evidence. CI builds the three images but does not start
+a container from them; image construction and sandbox execution are separate claims.
 
 ## Why it is interesting
 
@@ -416,12 +420,13 @@ dashboard auth) are listed in [`SECURITY.md`](SECURITY.md).
 
 ## Known limitations
 
-- **No Docker verification here.** The sandbox code is unit-tested with a fake Docker client,
-  but no container ran, no image built and Compose never started.
+- **Docker is only partly verified.** CI built the sandbox, API and dashboard images on a
+  GitHub-hosted runner, but no container was started, the real-daemon test is skipped and
+  Compose has never run.
 - **No live external services.** GitHub, Groq and Anthropic are faked in tests; adapters use
   mocked HTTP. No live webhook, token exchange, model call or PR comment is claimed.
-- **CI has never run.** The workflow parses and the local equivalents pass, but there is no
-  remote run yet.
+- **CI exercises four jobs but not the full stack.** Backend, dashboard, demo repo and image
+  builds pass; there is no live-service or `docker run` integration job.
 - **The public demo is not live.** It replays one sanitized local capture and has no backend.
 - **The dashboard has no authentication.** Put a live deployment behind SSO/VPN or a proxy
   allow-list; it exposes repository names, SHAs, test code and sandbox logs.
