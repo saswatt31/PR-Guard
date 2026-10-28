@@ -517,15 +517,17 @@ dashboard would still need SSO/VPN or a proxy allow-list.
 
 ## D041 — Standalone Next output is opt-in for Docker only
 **What:** `next.config.ts` sets `output: "standalone"` only when
-`NEXT_OUTPUT_STANDALONE=true`; the dashboard Dockerfile sets it, while Vercel and the local
-demo build use Next's normal output.
+`NEXT_OUTPUT_STANDALONE` is `1` or `true`; the dashboard Dockerfile sets `1`, while Vercel
+and the local demo build use Next's normal output.
 **Why:** The Docker image copies `.next/standalone`, but `next start` warns when standalone
 output is enabled and Vercel does not need that layout. Making it explicit keeps both paths
-correct.
+correct. Both spellings are accepted because the first CI container run caught a mismatch:
+the Dockerfile set `1` while the config only recognised `true`, so the runner stage's copy
+failed.
 **Alternatives:** Always standalone (warning, Vercel mismatch), remove Docker support (loses
 the documented container path).
-**Limitation:** A local `docker build` has not run here; only the config and Dockerfile were
-reviewed.
+**Limitation:** A local `docker build` has not run here; the standalone output is verified
+locally, but the full image is only exercised by CI.
 
 ## D042 — The demo E2E proves the absence of a backend
 **What:** `dashboard/playwright.demo.config.ts` starts the production demo build with
