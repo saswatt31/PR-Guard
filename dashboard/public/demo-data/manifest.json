@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "captured_at": "2026-10-28T13:51:03Z",
-  "git_commit": "d9cc87eac8e43e17f8a489698e673fd08f1ad96c",
-  "git_commit_short": "d9cc87e",
+  "captured_at": "2026-10-28T14:16:48Z",
+  "git_commit": "9f7ecfdf455ee907094c25069fa9f861a8dfe4bd",
+  "git_commit_short": "9f7ecfd",
   "git_branch": "main",
   "git_dirty": false,
   "source": "backend/scripts/demo_smoke.py (real worker, npm and Vitest)",
@@ -22,7 +22,7 @@
   },
   "run_count": 1,
   "run_ids": [
-    "39fafcce-17dc-4316-b70c-fdf4d43eb436"
+    "555263ab-e51a-4e4c-809d-ae3f2258d903"
   ],
   "repo_url": "https://github.com/saswatt31/PR-Guard",
   "recording_url": "https://github.com/saswatt31/PR-Guard/blob/main/docs/DEMO_RECORDING.md",

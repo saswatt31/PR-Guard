@@ -17,15 +17,15 @@ produced it.
   statically validated, installed once, executed with the network disabled in Docker, checked
   against per-file Vitest results and coverage, repaired through a capped fixer, and persisted
   as six auditable steps. The real local smoke produced **1 verified test**, moved coverage
-  **78.57% → 100.00%**, and recorded **23,972 ms**, **2 `FakeLLM` calls** and **1,294 tokens**.
+  **78.57% → 100.00%**, and recorded **9,246 ms**, **2 `FakeLLM` calls** and **1,294 tokens**.
   *Source: `dashboard/public/demo-data/manifest.json`, `details.json`; reproduce with
   `backend/scripts/demo_smoke.py`.*
 
 - **Shipped a zero-backend demo dashboard on Vercel from genuine local captures.** Added a
   build-time JSON loader behind `NEXT_PUBLIC_DEMO_MODE=true`, a permanent provenance banner
   (capture date, commit, fakes, sandbox mode), disabled live actions, and a no-backend
-  Playwright journey. **34 dashboard tests** pass at **98.17% statements / 92.30% branches /
-  100% functions / 99.24% lines**; **4 demo E2E tests** pass on desktop and mobile with zero
+  Playwright journey. **34 dashboard tests** pass at **98.18% statements / 92.30% branches /
+  100% functions / 99.25% lines**; **4 demo E2E tests** pass on desktop and mobile with zero
   `/api/` requests.
   *Source: `dashboard/tests/demo.test.tsx`, `dashboard/e2e/demo/demo.spec.ts`,
   `dashboard/coverage/coverage-summary.json` (generated locally by `npm run test:coverage`).*
@@ -96,8 +96,8 @@ to list comments and match a hidden marker, then update instead of create.
 
 ### 5. "Why is the public demo a recording? Isn't that less impressive?"
 
-It is less capable and more honest. A live demo would need a GitHub App installation, a
-provider key, a Docker host and a public webhook; none were available, and exposing them
+It is less capable and more honest. A live deployment would need a GitHub App installation,
+a provider key, a Docker host and a public webhook; none were available, and exposing them
 would add cost and attack surface. Instead I exported one genuine local run through the same
 Pydantic models as the API, sanitized paths/secrets, and built a static dashboard with a
 permanent banner naming the date, commit, `FakeLLM`, fake GitHub and `LocalSandboxRunner`.
@@ -128,7 +128,7 @@ would rather show a smaller, labelled artifact than imply a live service exists.
 | 34 dashboard tests, coverage percentages | `cd dashboard && npm run test:coverage`; generated `coverage/coverage-summary.json` |
 | 4 demo E2E, zero backend calls | `cd dashboard && npm run test:e2e:demo`; `e2e/demo/demo.spec.ts` |
 | 3 live-mode E2E | `cd dashboard && npm run test:e2e`; mock API |
-| 1 verified test, 78.57% → 100.00%, 23,972 ms, 2 calls, 1,294 tokens | `scripts/capture_demo_data.py`; committed `dashboard/public/demo-data/` |
+| 1 verified test, 78.57% → 100.00%, 9,246 ms, 2 calls, 1,294 tokens | `scripts/capture_demo_data.py`; committed `dashboard/public/demo-data/` |
 | 10 commits / 940,184 bytes / 0 leaks | `gitleaks git . --log-opts=--all` (local gitleaks 8.30.1) |
 | 0 npm vulnerabilities | `npm audit` in `dashboard/` and `demo-repo/` |
 | Docker not verified | real-daemon test is skipped; no daemon on the build machine |

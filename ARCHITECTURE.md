@@ -350,7 +350,7 @@ The following were executed on the development machine:
 | --- | --- |
 | Backend `pytest -q --cov=app` | 426 passed, 1 skipped, 95.16% branch-aware |
 | Backend `ruff check` / `ruff format --check` | clean |
-| Dashboard `vitest run --coverage` | 34 passed, 98.17% stmts / 92.30% branches / 100% funcs / 99.24% lines |
+| Dashboard `vitest run --coverage` | 34 passed, 98.18% stmts / 92.30% branches / 100% funcs / 99.25% lines |
 | Dashboard `next build` | success |
 | Dashboard demo build + `vercel build --prod` | success with `NEXT_PUBLIC_DEMO_MODE=true` |
 | Dashboard Playwright against the mock API | 3 passed |
@@ -358,7 +358,7 @@ The following were executed on the development machine:
 | `demo-repo` tests / coverage / typecheck | 11 passed, 100% / clean |
 | `npm audit` (dashboard, demo-repo) | 0 vulnerabilities |
 | Full-history gitleaks scan | 10 commits, 940,184 bytes, no leaks |
-| Local smoke | succeeded: 1 verified test, 78.57% → 100.00%, 2 FakeLLM calls, 1,294 tokens, 23,972 ms |
+| Local smoke | succeeded: 1 verified test, 78.57% → 100.00%, 2 FakeLLM calls, 1,294 tokens, 9,246 ms |
 | Demo capture | 1 run, 6 steps, 1 generated/verified test, sanitized JSON |
 
 The local smoke (`backend/scripts/demo_smoke.py`) is the only end-to-end execution. It uses

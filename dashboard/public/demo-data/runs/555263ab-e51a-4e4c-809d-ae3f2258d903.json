@@ -1,5 +1,5 @@
 {
-  "id": "39fafcce-17dc-4316-b70c-fdf4d43eb436",
+  "id": "555263ab-e51a-4e4c-809d-ae3f2258d903",
   "repo_full_name": "acme/prguard-demo",
   "pr_number": 1,
   "head_sha": "dddddddddddddddddddddddddddddddddddddddd",
@@ -11,9 +11,9 @@
   "tests_verified": 1,
   "cost_usd": 0.0,
   "coverage_delta": 21.43,
-  "duration_ms": 23972,
-  "created_at": "2026-10-27T12:42:57.381880Z",
-  "updated_at": "2026-10-27T12:43:21.514308Z",
+  "duration_ms": 9246,
+  "created_at": "2026-10-28T14:16:38.566750Z",
+  "updated_at": "2026-10-28T14:16:47.953336Z",
   "delivery_id": "demo-delivery",
   "base_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "installation_id": 0,
@@ -58,7 +58,7 @@
   "comment_url": null,
   "steps": [
     {
-      "id": "230acb79-cf79-4961-adf7-f39da46aa8bd",
+      "id": "955e7b6b-75c5-4f59-9775-5da68c86370b",
       "sequence": 1,
       "node": "baseline",
       "status": "succeeded",
@@ -74,12 +74,12 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "cost_usd": 0.0,
-      "duration_ms": 22009,
+      "duration_ms": 6730,
       "error": null,
-      "created_at": "2026-10-27T12:43:21.346993Z"
+      "created_at": "2026-10-28T14:16:47.709775Z"
     },
     {
-      "id": "9b910548-23da-44f8-8492-a9445a45ae5c",
+      "id": "cfb4b1d5-a143-4e4e-be3a-5f25a77718af",
       "sequence": 2,
       "node": "analyze",
       "status": "succeeded",
@@ -95,10 +95,10 @@
       "cost_usd": 0.0,
       "duration_ms": 0,
       "error": null,
-      "created_at": "2026-10-27T12:43:21.346993Z"
+      "created_at": "2026-10-28T14:16:47.709775Z"
     },
     {
-      "id": "3f350487-66a9-4ed5-9524-180346b5ce5a",
+      "id": "22e13743-3414-46db-8dd2-5027f65a0ed0",
       "sequence": 3,
       "node": "find_gaps",
       "status": "succeeded",
@@ -114,12 +114,12 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "cost_usd": 0.0,
-      "duration_ms": 4,
+      "duration_ms": 5,
       "error": null,
-      "created_at": "2026-10-27T12:43:21.346993Z"
+      "created_at": "2026-10-28T14:16:47.709775Z"
     },
     {
-      "id": "2efd661e-93b7-4bf4-ab2a-7cb33a99811f",
+      "id": "1709c0b9-1f0c-4cbe-9494-885203a7ef48",
       "sequence": 4,
       "node": "write",
       "status": "succeeded",
@@ -133,12 +133,12 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "cost_usd": 0.0,
-      "duration_ms": 2,
+      "duration_ms": 1,
       "error": null,
-      "created_at": "2026-10-27T12:43:21.346993Z"
+      "created_at": "2026-10-28T14:16:47.709775Z"
     },
     {
-      "id": "f8bdbec8-ebc1-4920-a582-4bb47b8d8b1a",
+      "id": "d8d50017-a81d-45dc-ba9c-e375c5d53128",
       "sequence": 5,
       "node": "execute",
       "status": "succeeded",
@@ -157,12 +157,12 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "cost_usd": 0.0,
-      "duration_ms": 1742,
+      "duration_ms": 2205,
       "error": null,
-      "created_at": "2026-10-27T12:43:21.346993Z"
+      "created_at": "2026-10-28T14:16:47.709775Z"
     },
     {
-      "id": "4e69baac-441b-4622-b0e4-db474ddff943",
+      "id": "2513decc-2241-46f1-ae51-c5197552da17",
       "sequence": 6,
       "node": "review",
       "status": "succeeded",
@@ -176,12 +176,12 @@
       "cost_usd": 0.0,
       "duration_ms": 0,
       "error": null,
-      "created_at": "2026-10-27T12:43:21.346993Z"
+      "created_at": "2026-10-28T14:16:47.709775Z"
     }
   ],
   "tests": [
     {
-      "id": "8b8d225d-2559-440a-90ba-2795eaec1823",
+      "id": "59afe443-31a3-459b-923f-74b1dba55c40",
       "file_path": "tests/score.test.ts",
       "function_name": "normalizeScore",
       "source_file": "src/score.ts",
@@ -190,12 +190,12 @@
       "status": "verified",
       "attempts": 0,
       "last_error": null,
-      "created_at": "2026-10-27T12:43:21.354524Z"
+      "created_at": "2026-10-28T14:16:47.709775Z"
     }
   ],
   "sandbox_runs": [
     {
-      "id": "041c3747-c28d-40f6-baa1-013af7e9f9e9",
+      "id": "3ec9477b-82ba-4894-9a69-91af9d0c7ec0",
       "phase": "test",
       "image": "prguard-sandbox:node20",
       "command": [
@@ -210,19 +210,19 @@
       "status": "passed",
       "exit_code": 0,
       "timed_out": false,
-      "duration_ms": 1718,
+      "duration_ms": 2171,
       "stdout": "JSON report written to C:<local-path>\n\u001b[34m % \u001b[39m\u001b[2mCoverage report from \u001b[22m\u001b[33mv8\u001b[39m\n------------|---------|----------|---------|---------|-------------------\nFile        | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s \n------------|---------|----------|---------|---------|-------------------\nAll files   |     100 |      100 |     100 |     100 |                   \n math.ts    |     100 |      100 |     100 |     100 |                   \n score.ts   |     100 |      100 |     100 |     100 |                   \n strings.ts |     100 |      100 |     100 |     100 |                   \n------------|---------|----------|---------|---------|-------------------\n",
       "stderr": "",
       "coverage": {
         "line_pct": 100.0,
         "files": 3
       },
-      "created_at": "2026-10-27T12:43:21.354524Z"
+      "created_at": "2026-10-28T14:16:47.709775Z"
     }
   ],
   "review": {
     "content": "FakeLLM review: the deterministic demo run verified the generated tests inside the configured sandbox. No provider call was made.",
     "cost_usd": 0.0,
-    "created_at": "2026-10-27T12:43:21.354155Z"
+    "created_at": "2026-10-28T14:16:47.709775Z"
   }
 }

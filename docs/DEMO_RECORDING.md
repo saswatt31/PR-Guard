@@ -14,7 +14,7 @@ provider API. Do not record a slide that implies otherwise.
 
 ## Before recording
 
-1. Open the live demo and confirm the banner says
+1. Open the demo dashboard and confirm the banner says
    `Demo mode: replaying recorded results from real runs (captured …, commit …)`.
 2. Use a clean browser profile or an incognito window with no bookmarks, extensions or
    personal tabs visible.
@@ -27,7 +27,7 @@ provider API. Do not record a slide that implies otherwise.
 | Time | Action | What the viewer should understand |
 | --- | --- | --- |
 | 0–8 s | Open `/`. Hold on the amber banner. | This is recorded data, with a capture date, commit, fake GitHub and `LocalSandboxRunner` named. |
-| 8–20 s | Slow scroll over the four metric cards and the run table. | One run: 1 verified test, 78.57% → 100.00%, 23,972 ms, $0.00 from `FakeLLM`. |
+| 8–20 s | Slow scroll over the four metric cards and the run table. | One run: 1 verified test, 78.57% → 100.00%, 9,246 ms, $0.00 from `FakeLLM`. |
 | 20–30 s | Select status `succeeded`, click **Filter**. | URL filters still work without a backend. |
 | 30–40 s | Click `acme/prguard-demo`. | The detail page opens; the recorded-run note is visible above the title. |
 | 40–58 s | Scroll the metrics, then the verified test. Expand `tests/score.test.ts · normalizeScore`. | The generated Vitest code and the verification result are real persisted artifacts. |
@@ -56,8 +56,8 @@ Save the final file as:
 docs/demo/pr-guard-demo.mp4
 ```
 
-Keep it under **10 MB** if possible. Then open `README.md`, find the `## Live demo` section,
-and replace the placeholder comment with:
+Keep it under **10 MB** if possible. Then open `README.md`, find the `## Demo recording`
+section, and replace the placeholder comment with:
 
 ```markdown
 https://github.com/user-attachments/assets/REPLACE-WITH-YOUR-UPLOAD-ID

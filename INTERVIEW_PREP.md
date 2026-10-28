@@ -43,9 +43,9 @@ Three trust zones:
 
 ## Demo script (5 minutes)
 
-1. Open the live demo (<https://pr-guard-dashboard.vercel.app>) and hold on the amber
+1. Open the demo dashboard (<https://pr-guard-dashboard.vercel.app>) and hold on the amber
    banner: capture date, commit, `FakeLLM`, fake GitHub, `LocalSandboxRunner`, no backend.
-2. Show the overview: one recorded run, 1 verified test, 78.57% → 100.00%, 23,972 ms, $0.00.
+2. Show the overview: one recorded run, 1 verified test, 78.57% → 100.00%, 9,246 ms, $0.00.
 3. Open the run detail: six steps, the verified test, the captured Vitest output and the
    disabled **Open PR unavailable** action. Explain that the fake repo has no real PR.
 4. Run `backend/scripts/demo_smoke.py`: real npm/Vitest in a temporary workspace, real
@@ -268,7 +268,7 @@ integration, and backend tests cover the real queries.
 
 **33. What coverage numbers do you have, and what do they mean?**
 Backend 95.16% branch-aware with 426 passed and 1 skipped (the real-Docker test). Dashboard
-98.17% statements / 92.30% branches / 100% functions / 99.24% lines with 34 tests. Demo repo
+98.18% statements / 92.30% branches / 100% functions / 99.25% lines with 34 tests. Demo repo
 100% across 11 tests. Coverage is not correctness: the skipped Docker test is a real gap,
 and generated tests are only as good as their assertions.
 
@@ -355,10 +355,10 @@ Docker socket.
 | Backend tests | 426 passed, 1 skipped |
 | Backend coverage | 95.16% (branch-aware) |
 | Dashboard tests | 34 passed |
-| Dashboard coverage | 98.17% statements, 92.30% branches, 100% functions, 99.24% lines |
+| Dashboard coverage | 98.18% statements, 92.30% branches, 100% functions, 99.25% lines |
 | Dashboard E2E | 3 live-mode (mock API) + 4 demo (desktop/mobile) |
 | Demo repo | 11 tests, 100% statements/branches/functions/lines |
-| Demo capture | 1 run, 1 verified test, 6 steps, 23,972 ms, 2 FakeLLM calls, 1,294 tokens, $0.00 |
+| Demo capture | 1 run, 1 verified test, 6 steps, 9,246 ms, 2 FakeLLM calls, 1,294 tokens, $0.00 |
 | Local smoke | 1 verified test, 78.57% → 100.00%, 2 FakeLLM calls, 1,294 tokens |
 | Secret scan | 10 commits, 940,184 bytes, 0 leaks |
 | LLM caps | 24 calls / 120k tokens / $0.75 defaults; `.prguard.yml` can tighten |

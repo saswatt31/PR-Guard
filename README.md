@@ -17,17 +17,17 @@ The generated code is treated as hostile: no GitHub token, LLM key or database U
 the prompt, and the test phase has no network, no root filesystem write, no Linux
 capabilities and a hard timeout.
 
-**[Live demo](https://pr-guard-dashboard.vercel.app)** · **[Recording guide](docs/DEMO_RECORDING.md)** ·
+**[Demo dashboard](https://pr-guard-dashboard.vercel.app)** · **[Recording guide](docs/DEMO_RECORDING.md)** ·
 **[Architecture](ARCHITECTURE.md)** · **[Decisions](DECISIONS.md)** · **[Security](SECURITY.md)**
 
-> The live demo is a **read-only replay of one genuine local capture**. Vercel runs no
+> The demo dashboard is a **read-only replay of one genuine local capture**. Vercel runs no
 > backend, no database and no model. The amber banner names the capture date, commit,
 > `FakeLLM`, fake GitHub and `LocalSandboxRunner` on every page.
 
 ![PR-Guard demo dashboard](docs/screenshots/dashboard-overview.png)
 
 > The public demo overview, captured from the committed JSON. One run: 1 verified test,
-> 78.57% → 100.00%, 23,972 ms, $0.00. This is a local pipeline run, not a Docker or
+> 78.57% → 100.00%, 9,246 ms, $0.00. This is a local pipeline run, not a Docker or
 > live-GitHub run.
 
 ![PR-Guard run detail](docs/screenshots/run-detail.png)
@@ -64,11 +64,11 @@ Measured on 2026-10-28 on the development machine (Windows, Python 3.12.1, Node 
 | --- | --- |
 | Backend `pytest -q --cov=app` | **426 passed, 1 skipped**, 95.16% branch-aware |
 | Backend `ruff check` / `ruff format --check` | clean |
-| Dashboard `vitest run --coverage` | **34 passed**, 98.17% statements / 92.30% branches / 100% functions / 99.24% lines |
+| Dashboard `vitest run --coverage` | **34 passed**, 98.18% statements / 92.30% branches / 100% functions / 99.25% lines |
 | Dashboard demo E2E (no backend) | **4 passed** (desktop + mobile), zero `/api/` requests |
 | Dashboard live-mode E2E (mock API) | **3 passed** |
 | Demo repository | **11 passed**, 100% statements/branches/functions/lines |
-| Demo capture | 1 run, 1 verified test, 6 steps, 78.57% → 100.00%, 23,972 ms, 2 `FakeLLM` calls, 1,294 tokens |
+| Demo capture | 1 run, 1 verified test, 6 steps, 78.57% → 100.00%, 9,246 ms, 2 `FakeLLM` calls, 1,294 tokens |
 | `vercel build --prod` with demo flag | **Passed** |
 | Full-history secret scan | **Clean**: 10 commits, 940,184 bytes, no leaks |
 | `npm audit` (dashboard, demo-repo) | 0 vulnerabilities |

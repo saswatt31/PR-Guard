@@ -1,7 +1,7 @@
 {
   "items": [
     {
-      "id": "39fafcce-17dc-4316-b70c-fdf4d43eb436",
+      "id": "555263ab-e51a-4e4c-809d-ae3f2258d903",
       "repo_full_name": "acme/prguard-demo",
       "pr_number": 1,
       "head_sha": "dddddddddddddddddddddddddddddddddddddddd",
@@ -13,9 +13,9 @@
       "tests_verified": 1,
       "cost_usd": 0.0,
       "coverage_delta": 21.43,
-      "duration_ms": 23972,
-      "created_at": "2026-10-27T12:42:57.381880Z",
-      "updated_at": "2026-10-27T12:43:21.514308Z"
+      "duration_ms": 9246,
+      "created_at": "2026-10-28T14:16:38.566750Z",
+      "updated_at": "2026-10-28T14:16:47.953336Z"
     }
   ],
   "total": 1,

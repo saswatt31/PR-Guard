@@ -15,7 +15,7 @@ matters, the failure handling, and the tests that exercise it.
 >   those services are described as designed, not as proven end to end.
 >
 > Latest measured numbers: backend **426 passed, 1 skipped, 95.16%**; dashboard **34
-> passed**, 98.17% statements / 92.30% branches / 100% functions / 99.24% lines; demo
+> passed**, 98.18% statements / 92.30% branches / 100% functions / 99.25% lines; demo
 > E2E **4 passed** with no backend; demo repo **11 passed, 100%**. The single skip is the
 > real-Docker-daemon test.
 
