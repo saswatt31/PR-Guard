@@ -77,7 +77,7 @@ async def test_groq_client_sends_request_and_parses_usage() -> None:
         )
 
     http = mock_http(handler)
-    client = GroqClient("secret", "llama-3.3-70b-versatile", http=http)
+    client = GroqClient("unit-test-key", "llama-3.3-70b-versatile", http=http)
     try:
         response = await client.complete(
             [{"role": "user", "content": "hi"}],
@@ -94,7 +94,7 @@ async def test_groq_client_sends_request_and_parses_usage() -> None:
     assert response.output_tokens == 50
     assert response.cost_usd == pytest.approx(0.0000985)
     assert captured["url"] == "https://api.groq.com/openai/v1/chat/completions"
-    assert captured["auth"] == "Bearer secret"
+    assert captured["auth"] == "Bearer unit-test-key"
     body = captured["body"]
     assert isinstance(body, dict)
     assert body["max_tokens"] == 99

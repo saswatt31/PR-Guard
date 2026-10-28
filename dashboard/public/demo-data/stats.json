@@ -1,0 +1,13 @@
+{
+  "total_runs": 1,
+  "queued": 0,
+  "running": 0,
+  "succeeded": 1,
+  "failed": 0,
+  "skipped": 0,
+  "tests_generated": 1,
+  "tests_verified": 1,
+  "total_cost_usd": 0.0,
+  "avg_coverage_delta": 21.43,
+  "avg_duration_ms": 23972
+}

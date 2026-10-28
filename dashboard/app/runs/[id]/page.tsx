@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { RunDetailView } from "@/components/RunDetailView";
 import { ApiError, getRun } from "@/lib/api";
+import { DEMO_MODE } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   const { id } = await params;
   try {
     const run = await getRun(id);
-    return <RunDetailView run={run} />;
+    return <RunDetailView run={run} demo={DEMO_MODE} />;
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;

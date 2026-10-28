@@ -119,7 +119,7 @@ function SandboxCard({ run }: { run: SandboxExecution }) {
   );
 }
 
-function Metadata({ run }: { run: RunDetail }) {
+function Metadata({ run, demo }: { run: RunDetail; demo: boolean }) {
   const prUrl = `https://github.com/${run.repo_full_name}/pull/${run.pr_number}`;
   return (
     <section className="panel" aria-labelledby="metadata-title">
@@ -130,9 +130,15 @@ function Metadata({ run }: { run: RunDetail }) {
         <dl className="kv-list">
           <dt>Pull request</dt>
           <dd>
-            <a href={prUrl} target="_blank" rel="noreferrer">
-              #{run.pr_number} on GitHub ↗
-            </a>
+            {demo ? (
+              <span title="Demo mode: the capture used a fake GitHub repository, so no live PR exists.">
+                #{run.pr_number} (recorded fixture)
+              </span>
+            ) : (
+              <a href={prUrl} target="_blank" rel="noreferrer">
+                #{run.pr_number} on GitHub ↗
+              </a>
+            )}
           </dd>
           <dt>Head</dt>
           <dd className="mono">{shortSha(run.head_sha)}</dd>
@@ -159,6 +165,10 @@ function Metadata({ run }: { run: RunDetail }) {
               <a href={run.comment_url} target="_blank" rel="noreferrer">
                 #{run.comment_id} on GitHub ↗
               </a>
+            ) : demo ? (
+              <span title="The in-process fake GitHub client accepted a comment, but no real GitHub comment exists.">
+                not posted (fake GitHub)
+              </span>
             ) : (
               "not posted"
             )}
@@ -175,7 +185,7 @@ function Metadata({ run }: { run: RunDetail }) {
   );
 }
 
-export function RunDetailView({ run }: { run: RunDetail }) {
+export function RunDetailView({ run, demo = false }: { run: RunDetail; demo?: boolean }) {
   const verified = run.tests.filter((test) => test.status === "verified");
   const rejected = run.tests.filter((test) => test.status !== "verified");
   const totalTokens = run.input_tokens + run.output_tokens;
@@ -190,6 +200,13 @@ export function RunDetailView({ run }: { run: RunDetail }) {
           {run.repo_full_name} #{run.pr_number}
         </span>
       </nav>
+
+      {demo ? (
+        <p className="demo-note" data-testid="demo-detail-note">
+          Recorded local run: FakeLLM, in-process fake GitHub and LocalSandboxRunner. No
+          Docker container, live GitHub comment or provider call is being shown.
+        </p>
+      ) : null}
 
       <header className="detail-head">
         <div>
@@ -208,9 +225,19 @@ export function RunDetailView({ run }: { run: RunDetail }) {
           </p>
         </div>
         <div className="detail-actions">
-          <a className="button" href={prUrl} target="_blank" rel="noreferrer">
-            Open PR ↗
-          </a>
+          {demo ? (
+            <span
+              className="button button-disabled"
+              aria-disabled="true"
+              title="Demo mode: the capture used a fake GitHub repository, so no live pull request exists."
+            >
+              Open PR unavailable
+            </span>
+          ) : (
+            <a className="button" href={prUrl} target="_blank" rel="noreferrer">
+              Open PR ↗
+            </a>
+          )}
           {run.comment_url ? (
             <a className="button" href={run.comment_url} target="_blank" rel="noreferrer">
               View comment ↗
@@ -336,7 +363,7 @@ export function RunDetailView({ run }: { run: RunDetail }) {
             </section>
           ) : null}
 
-          <Metadata run={run} />
+          <Metadata run={run} demo={demo} />
 
           <section className="panel" aria-labelledby="config-title">
             <div className="section-head">

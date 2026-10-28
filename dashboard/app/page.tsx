@@ -5,6 +5,7 @@ import { Pagination } from "@/components/Pagination";
 import { RunTable } from "@/components/RunTable";
 import { RunsFilter } from "@/components/RunsFilter";
 import { API_URL, getRuns, getStats } from "@/lib/api";
+import { DEMO_MODE } from "@/lib/demo";
 import {
   formatCost,
   formatDelta,
@@ -138,7 +139,7 @@ export default async function HomePage({ searchParams }: PageProps) {
                   : "Newest webhook-triggered runs first"}
               </p>
             </div>
-            <span className="panel-kicker">Read-only</span>
+            <span className="panel-kicker">{DEMO_MODE ? "Recorded · read only" : "Read-only"}</span>
           </div>
           <RunsFilter status={status} repo={repo} />
           {runs.items.length > 0 ? (
@@ -185,11 +186,18 @@ export default async function HomePage({ searchParams }: PageProps) {
         <section className="error-panel" role="alert">
           <h2>Could not load the run console</h2>
           <p>{message}</p>
-          <p>
-            The dashboard expects the API at <code>{API_URL}</code>. Set{" "}
-            <code>PRGUARD_API_URL</code> for server-side fetches and{" "}
-            <code>NEXT_PUBLIC_API_URL</code> for browser links.
-          </p>
+          {DEMO_MODE ? (
+            <p>
+              This deployment is in demo mode and reads only the committed capture. Re-run{" "}
+              <code>scripts/capture_demo_data.py</code> to regenerate it.
+            </p>
+          ) : (
+            <p>
+              The dashboard expects the API at <code>{API_URL}</code>. Set{" "}
+              <code>PRGUARD_API_URL</code> for server-side fetches and{" "}
+              <code>NEXT_PUBLIC_API_URL</code> for browser links.
+            </p>
+          )}
         </section>
       </>
     );

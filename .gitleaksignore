@@ -1,0 +1,6 @@
+# Historical false positive: this was the literal "secret" passed to GroqClient in a
+# unit test and asserted as "Bearer secret". It is not a credential. The current test
+# uses "unit-test-key" instead. Kept here because the finding exists in a pushed commit.
+91b321c69097eac9c53f4bd01ec0f8d386050db9:backend/tests/test_llm_clients.py:generic-api-key:80
+# The same test line is still a generic-api-key false positive in the working tree.
+backend/tests/test_llm_clients.py:generic-api-key:80

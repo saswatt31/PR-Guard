@@ -1,0 +1,20 @@
+# Gitleaks config for this repository.
+#
+# History is scanned with `gitleaks git . --log-opts=--all`.
+# The working-tree scan excludes dependencies and build output that are
+# gitignored but present locally. A generated .env file inside `.vercel/` is
+# never committed; the Vercel CLI writes it as a local build credential.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Vendored, generated, and local-only files"
+paths = [
+  '''(^|/)\.venv/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''(^|/)\.vercel/''',
+  '''(^|/)coverage/''',
+  '''(^|/)playwright-report(-demo)?/''',
+  '''(^|/)test-results/''',
+]

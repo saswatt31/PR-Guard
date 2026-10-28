@@ -72,11 +72,17 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: End-to-end tests (mock API)
         run: npx playwright test
+      - name: Demo build (no backend)
+        run: npm run build:demo
+      - name: Demo end-to-end tests (static capture, no backend)
+        run: npx playwright test --config playwright.demo.config.ts
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report
-          path: dashboard/playwright-report
+          path: |
+            dashboard/playwright-report
+            dashboard/playwright-report-demo
           retention-days: 7
 
   demo:

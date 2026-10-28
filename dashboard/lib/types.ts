@@ -118,3 +118,24 @@ export interface DemoInfo {
   enabled: boolean;
   run_count: number;
 }
+
+export interface DemoManifest {
+  schema_version: number;
+  captured_at: string;
+  git_commit: string;
+  git_commit_short: string;
+  git_branch: string;
+  git_dirty: boolean;
+  source: string;
+  repository: string;
+  pull_request: number;
+  provider: string;
+  github: string;
+  sandbox: string;
+  run_config: Record<string, unknown>;
+  run_count: number;
+  run_ids: string[];
+  repo_url: string;
+  recording_url: string;
+  caveats: string[];
+}

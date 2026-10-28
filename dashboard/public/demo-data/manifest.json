@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-28T13:51:03Z",
+  "git_commit": "d9cc87eac8e43e17f8a489698e673fd08f1ad96c",
+  "git_commit_short": "d9cc87e",
+  "git_branch": "main",
+  "git_dirty": false,
+  "source": "backend/scripts/demo_smoke.py (real worker, npm and Vitest)",
+  "repository": "acme/prguard-demo",
+  "pull_request": 1,
+  "provider": "FakeLLM (deterministic; zero provider calls)",
+  "github": "in-process fake (no GitHub App, token, webhook or real comment)",
+  "sandbox": "LocalSandboxRunner (no container, no network isolation, not a boundary)",
+  "run_config": {
+    "sandbox_mode": "local",
+    "llm_provider": "fake",
+    "max_llm_calls": 8,
+    "max_total_tokens": 50000,
+    "max_cost_usd": 0.25,
+    "sandbox_install_timeout_seconds": 300,
+    "sandbox_timeout_seconds": 180
+  },
+  "run_count": 1,
+  "run_ids": [
+    "39fafcce-17dc-4316-b70c-fdf4d43eb436"
+  ],
+  "repo_url": "https://github.com/saswatt31/PR-Guard",
+  "recording_url": "https://github.com/saswatt31/PR-Guard/blob/main/docs/DEMO_RECORDING.md",
+  "caveats": [
+    "The pipeline, npm install, Vitest execution and SQLite persistence are real.",
+    "The sandbox is LocalSandboxRunner, not Docker; it is not a security boundary.",
+    "GitHub is an in-process fake; no GitHub App, installation token or real PR comment exists.",
+    "The LLM is FakeLLM with scripted output; no Groq or Anthropic request was made.",
+    "Comment URLs and installation identifiers were removed during export.",
+    "Cost is $0.00 because FakeLLM does not bill tokens."
+  ]
+}

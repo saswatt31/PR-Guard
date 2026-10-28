@@ -468,3 +468,85 @@ is intentionally a separate run. SQLite serialises writers, so the race tests si
 `IntegrityError` rather than opening two real concurrent connections. There is no migration
 tool: `create_all` applies the constraint to new databases only, so an existing SQLite file
 must be recreated (or migrated by hand) to gain it.
+
+## D038 — The public demo is a build-time static replay
+**What:** `NEXT_PUBLIC_DEMO_MODE=true` makes `dashboard/lib/api.ts` delegate every accessor to
+`dashboard/lib/demo.ts`, which imports committed JSON from `dashboard/public/demo-data/` at
+build time. The deployed app makes no API request.
+**Why:** A Vercel deployment has no backend, database, GitHub App or provider key. A static
+replay is cheap, reproducible and cannot leak credentials. Keeping the same function
+signatures means filters, pagination, detail pages and 404s use the production code path.
+**Alternatives:** Deploy FastAPI + SQLite on a VPS (cost, credentials, attack surface), fetch
+JSON from `public/` at runtime (still no backend, but an avoidable runtime dependency), rewrite
+the pages with hard-coded demo branches (logic drift).
+**Limitation:** The demo cannot show a new run. Regenerating it requires the capture script
+and a redeploy. The page stays server-rendered rather than static-exported; that is fine on
+Vercel and keeps URL filters and 404 handling simple.
+
+## D039 — Demo captures carry provenance and are sanitized at export
+**What:** `scripts/capture_demo_data.py` runs the real local smoke by default, then serialises
+SQLite rows through the API's Pydantic models. It writes a `manifest.json` with capture date,
+commit, branch, dirty state, provider, GitHub mode, sandbox mode, run config, run ids and
+caveats. The exporter replaces absolute Windows/POSIX paths, redacts secret-named keys,
+removes installation/comment identifiers, and refuses to write a payload that matches a
+secret pattern.
+**Why:** A demo without provenance is indistinguishable from hand-written fixtures. The
+manifest drives the banner, so the date and commit cannot drift from the data. Serializing
+through the response models prevents the static shape from diverging from the live API.
+**Alternatives:** Hand-authored demo JSON (dishonest, drifts), commit `data/demo.db`
+(binary, contains local paths, not API-shaped), fetch the live API from Vercel (requires a
+backend).
+**Limitation:** The capture is still a local `FakeLLM` + `LocalSandboxRunner` run. The
+manifest and UI say so; it is not Docker or provider evidence. The dirty-state check ignores
+the generated `dashboard/public/demo-data/` files themselves, because those are the output
+being captured; tracked source changes still set `git_dirty`.
+
+## D040 — Vercel hosts only the dashboard, with one non-secret variable
+**What:** The Vercel project root is `dashboard/`, the build command is the default
+`npm run build`, and the only environment variable is `NEXT_PUBLIC_DEMO_MODE=true`. No
+`vercel.json`, API URL, GitHub token or provider key is committed or configured.
+**Why:** The demo path needs nothing else. Keeping the root at `dashboard/` avoids shipping
+the backend tests, demo repo and virtualenv to the build. The variable is public by design
+(`NEXT_PUBLIC_`) and contains no secret.
+**Alternatives:** Deploy the whole repository with a monorepo config (slower, more surface),
+commit a `vercel.json` (unnecessary for a single app), reuse the live API URL (would make
+the demo depend on an unavailable backend).
+**Limitation:** Vercel cannot build the Docker image or run the backend. The demo is read-only
+and has no authentication; it contains only the sanitized `acme/prguard-demo` capture. A live
+dashboard would still need SSO/VPN or a proxy allow-list.
+
+## D041 — Standalone Next output is opt-in for Docker only
+**What:** `next.config.ts` sets `output: "standalone"` only when
+`NEXT_OUTPUT_STANDALONE=true`; the dashboard Dockerfile sets it, while Vercel and the local
+demo build use Next's normal output.
+**Why:** The Docker image copies `.next/standalone`, but `next start` warns when standalone
+output is enabled and Vercel does not need that layout. Making it explicit keeps both paths
+correct.
+**Alternatives:** Always standalone (warning, Vercel mismatch), remove Docker support (loses
+the documented container path).
+**Limitation:** A local `docker build` has not run here; only the config and Dockerfile were
+reviewed.
+
+## D042 — The demo E2E proves the absence of a backend
+**What:** `dashboard/playwright.demo.config.ts` starts the production demo build with
+`PRGUARD_API_URL` pointed at a closed port (`127.0.0.1:9`). `e2e/demo/demo.spec.ts` records
+every request whose path starts with `/api/` or whose port is 8000/9 and asserts the list is
+empty after a home → filter → detail journey. It runs on desktop and mobile.
+**Why:** A screenshot or a green build cannot prove that the demo did not quietly call a
+local API. Failing the journey on any backend request makes the zero-backend claim testable.
+**Alternatives:** Only assert the banner text (does not catch a fetch), run with no network
+at all (Playwright needs the local server), rely on code review (regressions slip).
+**Limitation:** The check covers requests made by this browser journey, not every future
+route. The build-time import itself is enforced by `lib/demo.ts` and the demo Vitest suite.
+
+## D043 — No recording is fabricated; the guide reserves the embed slot
+**What:** `docs/DEMO_RECORDING.md` contains the shot list, capture settings and embed
+location. The README links to it and explicitly says no video exists yet.
+**Why:** A screen recording of a live PR → comment flow is impossible without a GitHub App
+installation, provider key and Docker. Embedding a stock clip or an animated mockup would
+misrepresent the evidence. The guide lets the recording be added later without changing the
+banner contract.
+**Alternatives:** Commit an animated GIF of the static demo and call it a recording (still
+not live, but at least genuine; deferred), record the local smoke only (does not show the
+PR flow), omit the section (less useful to a reviewer).
+**Limitation:** Until the file exists, the README has a gap. That is deliberate and labelled.

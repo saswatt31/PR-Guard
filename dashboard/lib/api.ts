@@ -1,3 +1,10 @@
+import {
+  DEMO_MODE,
+  getDemoInfo as loadDemoInfo,
+  getDemoRun as loadDemoRun,
+  getDemoRuns as loadDemoRuns,
+  getDemoStats as loadDemoStats,
+} from "./demo";
 import type { DemoInfo, RunDetail, RunList, RunStats, RunStatus } from "./types";
 
 export const API_URL = (
@@ -58,6 +65,14 @@ async function request<T>(path: string): Promise<T> {
 }
 
 export async function getRuns(query: RunQuery = {}): Promise<RunList> {
+  if (DEMO_MODE) {
+    return loadDemoRuns({
+      limit: query.limit,
+      offset: query.offset,
+      status: query.status,
+      repo: query.repo,
+    });
+  }
   const suffix = queryString({
     limit: query.limit,
     offset: query.offset,
@@ -67,14 +82,21 @@ export async function getRuns(query: RunQuery = {}): Promise<RunList> {
   return request<RunList>(`/api/runs${suffix}`);
 }
 
-export function getRun(runId: string): Promise<RunDetail> {
+export async function getRun(runId: string): Promise<RunDetail> {
+  if (DEMO_MODE) {
+    const run = loadDemoRun(runId);
+    if (!run) throw new ApiError(`run not found: ${runId}`, 404);
+    return run;
+  }
   return request<RunDetail>(`/api/runs/${encodeURIComponent(runId)}`);
 }
 
-export function getStats(): Promise<RunStats> {
+export async function getStats(): Promise<RunStats> {
+  if (DEMO_MODE) return loadDemoStats();
   return request<RunStats>("/api/stats");
 }
 
-export function getDemoInfo(): Promise<DemoInfo> {
+export async function getDemoInfo(): Promise<DemoInfo> {
+  if (DEMO_MODE) return loadDemoInfo();
   return request<DemoInfo>("/api/demo");
 }

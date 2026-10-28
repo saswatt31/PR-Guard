@@ -21,10 +21,12 @@ coverage/
 !backend/app/coverage/**/*.pyi
 !backend/app/coverage/**/py.typed
 playwright-report/
+playwright-report-demo/
 test-results/
 *.tsbuildinfo
 .next-types/
 .eslintcache
+.vercel/
 
 # Runtime data
 data/

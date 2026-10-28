@@ -1,12 +1,13 @@
 # Architecture
 
-> Status after Phase 10. The webhook, worker, run processor, agent graph, LLM/config layer,
-> sandbox, Next.js dashboard, demo repository, CI matrix and documentation are implemented.
-> The Phase 9 local smoke executed the real pipeline with real npm/Vitest, a fake GitHub
-> client, `FakeLLM` and `LocalSandboxRunner`; it is **not** Docker or live-provider
-> verification. Docker is unavailable on the build machine, so container execution, image
-> builds, Compose and GitHub Actions remain unverified. Every table and field below reflects
-> the implemented SQLAlchemy models.
+> Status after the demo-deployment pass (2026-10-28). The webhook, worker, run processor,
+> agent graph, LLM/config layer, sandbox, Next.js dashboard, demo repository, CI matrix and
+> documentation are implemented. The local smoke executed the real pipeline with real
+> npm/Vitest and SQLite, a fake GitHub client, `FakeLLM` and `LocalSandboxRunner`; it is
+> **not** Docker or live-provider verification. That run is exported to committed JSON and
+> replayed by the public Vercel dashboard with no backend. Docker is unavailable on the build
+> machine, so container execution, image builds, Compose and GitHub Actions remain
+> unverified. Every table and field below reflects the implemented SQLAlchemy models.
 
 ## 1. System view
 
@@ -27,11 +28,13 @@ flowchart LR
     ORCH -->|one PR comment| GHAPI
     ORCH -->|run, steps, tests, costs| DB
     D[Next.js dashboard] -->|read-only REST| API
+    DEMO[Vercel demo<br/>NEXT_PUBLIC_DEMO_MODE=true] -->|build-time import| JSON[(committed demo JSON)]
 ```
 
 The webhook service and worker run in one process for this project. The job table is
 the source of truth, so the worker can be split into its own deployment later without
-changing the API.
+changing the API. The demo path is deliberately separate: it never contacts `API`, and the
+JSON is bundled at build time.
 
 ## 2. Agent graph
 
@@ -347,18 +350,23 @@ The following were executed on the development machine:
 | --- | --- |
 | Backend `pytest -q --cov=app` | 426 passed, 1 skipped, 95.16% branch-aware |
 | Backend `ruff check` / `ruff format --check` | clean |
-| Dashboard `vitest run --coverage` | 29 passed, 99.21% stmts / 91.97% branches / 100% funcs / lines |
+| Dashboard `vitest run --coverage` | 34 passed, 98.17% stmts / 92.30% branches / 100% funcs / 99.24% lines |
 | Dashboard `next build` | success |
+| Dashboard demo build + `vercel build --prod` | success with `NEXT_PUBLIC_DEMO_MODE=true` |
 | Dashboard Playwright against the mock API | 3 passed |
+| Dashboard demo Playwright (desktop + mobile) | 4 passed, zero backend or `/api/` requests |
 | `demo-repo` tests / coverage / typecheck | 11 passed, 100% / clean |
 | `npm audit` (dashboard, demo-repo) | 0 vulnerabilities |
-| Phase 9 local smoke | succeeded: 1 verified test, 78.57% -> 100.00%, 2 FakeLLM calls, 1,294 tokens |
+| Full-history gitleaks scan | 10 commits, 940,184 bytes, no leaks |
+| Local smoke | succeeded: 1 verified test, 78.57% → 100.00%, 2 FakeLLM calls, 1,294 tokens, 23,972 ms |
+| Demo capture | 1 run, 6 steps, 1 generated/verified test, sanitized JSON |
 
 The local smoke (`backend/scripts/demo_smoke.py`) is the only end-to-end execution. It uses
 real npm/Vitest and real persistence, but a fake GitHub client, `FakeLLM` and
-`LocalSandboxRunner`. The dashboard screenshots in `docs/screenshots/` were captured from
-the SQLite database it produced, served by FastAPI and a production Next build. They must
-be described as a local FakeLLM demo.
+`LocalSandboxRunner`. `scripts/capture_demo_data.py` exports that database through the same
+Pydantic response models as the API. The dashboard screenshots in `docs/screenshots/` were
+captured from the demo build, so the amber banner is part of the evidence. They must be
+described as a local FakeLLM demo.
 
 Not verified in this environment:
 
@@ -372,3 +380,45 @@ Not verified in this environment:
 
 These gaps are called out in the README, `SECURITY.md`, `INTERVIEW_PREP.md` and
 `PROGRESS.md` so no mocked path is presented as production evidence.
+
+## 9. Demo mode and public deployment
+
+The public dashboard is a separate data path, selected at build time by
+`NEXT_PUBLIC_DEMO_MODE=true`:
+
+```text
+scripts/capture_demo_data.py
+  -> runs backend/scripts/demo_smoke.py (real worker, npm, Vitest, SQLite)
+  -> sanitises rows and serialises through app.schemas
+  -> dashboard/public/demo-data/{manifest,stats,runs,details}.json
+  -> imported by dashboard/lib/demo.ts at build time
+  -> Next.js server components render the same pages, no fetch()
+```
+
+`dashboard/lib/api.ts` keeps one public surface (`getRuns`, `getRun`, `getStats`,
+`getDemoInfo`). In demo mode each function delegates to `lib/demo.ts`; in live mode it uses
+the existing FastAPI client. The call sites and return types are unchanged, so filters,
+pagination, detail rendering, empty states and 404 handling are exercised by the same code.
+
+The capture is bounded and explicit:
+
+- **Real:** the worker, LangGraph orchestration, npm install, Vitest execution, Istanbul
+  parsing, SQLite persistence and the six persisted steps.
+- **Fake:** the GitHub client (no App, token, webhook or real comment) and the LLM
+  (`FakeLLM`, no provider call, `$0.00`).
+- **Not isolated:** `LocalSandboxRunner` runs Node as the host user and reports
+  `network_disabled=False`. It is not a container and not a security boundary.
+- **Sanitised:** absolute Windows/POSIX paths are replaced, secret-named keys are redacted,
+  installation/comment identifiers are removed, and the exporter refuses to write output
+  that matches a secret pattern.
+
+`manifest.json` is the source of the banner and the recording link, not a hard-coded string.
+It records `captured_at`, `git_commit`, provider, GitHub mode, sandbox mode, run config,
+run ids and caveats. The banner is permanent on every route; live-only actions (API docs,
+Open PR, View comment) are disabled or labelled with an explanation.
+
+Vercel builds only `dashboard/` with `NEXT_PUBLIC_DEMO_MODE=true`. There is no server-side
+API base, no environment secret and no outbound request. The demo has no authentication
+because it contains only the sanitized `acme/prguard-demo` fixture; a live deployment still
+needs SSO/VPN or a proxy allow-list.
+

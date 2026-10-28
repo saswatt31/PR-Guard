@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { DemoBanner } from "@/components/DemoBanner";
+import { DEMO_MODE, getDemoManifest } from "@/lib/demo";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -47,6 +50,8 @@ const publicApiUrl = (
 ).replace(/\/+$/, "");
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const demoManifest = DEMO_MODE ? getDemoManifest() : null;
+
   return (
     <html lang="en">
       <body>
@@ -61,16 +66,33 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <span className="brand-tag">verified test console</span>
             </Link>
             <nav className="header-nav" aria-label="Console">
-              <a className="nav-link" href={`${publicApiUrl}/docs`}>
-                API docs
-              </a>
-              <span className="readonly-pill">
+              {demoManifest ? (
+                <span
+                  className="nav-link nav-disabled"
+                  title="API docs are unavailable in demo mode: this deployment has no backend."
+                >
+                  API docs
+                </span>
+              ) : (
+                <a className="nav-link" href={`${publicApiUrl}/docs`}>
+                  API docs
+                </a>
+              )}
+              <span
+                className="readonly-pill"
+                title={
+                  demoManifest
+                    ? "Demo mode is read-only and has no backend. Every number comes from the committed capture."
+                    : "This console only reads run data; the webhook and worker own all writes."
+                }
+              >
                 <span className="pulse-dot" aria-hidden="true" />
-                Read only
+                {demoManifest ? "Recorded · read only" : "Read only"}
               </span>
             </nav>
           </div>
         </header>
+        {demoManifest ? <DemoBanner manifest={demoManifest} /> : null}
         <main className="shell page-shell">{children}</main>
         <footer className="site-footer">
           <div className="shell footer-inner">

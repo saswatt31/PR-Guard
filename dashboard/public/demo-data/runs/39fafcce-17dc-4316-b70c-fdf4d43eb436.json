@@ -1,0 +1,228 @@
+{
+  "id": "39fafcce-17dc-4316-b70c-fdf4d43eb436",
+  "repo_full_name": "acme/prguard-demo",
+  "pr_number": 1,
+  "head_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "status": "succeeded",
+  "summary": "1 verified, 0 not verified; 2 changed file(s), 1 function(s), 1 gap(s); coverage 78.57% → 100.00% (+21.43 pp)",
+  "files_changed": 2,
+  "functions_found": 1,
+  "tests_generated": 1,
+  "tests_verified": 1,
+  "cost_usd": 0.0,
+  "coverage_delta": 21.43,
+  "duration_ms": 23972,
+  "created_at": "2026-10-27T12:42:57.381880Z",
+  "updated_at": "2026-10-27T12:43:21.514308Z",
+  "delivery_id": "demo-delivery",
+  "base_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "installation_id": 0,
+  "sender_login": "demo",
+  "is_fork": false,
+  "config": {
+    "enabled_paths": [
+      "**"
+    ],
+    "install_command": [
+      "npm",
+      "ci"
+    ],
+    "test_command": [
+      "npx",
+      "vitest",
+      "run",
+      "--coverage",
+      "--reporter=json",
+      "--outputFile=vitest-results.json"
+    ],
+    "results_file": "vitest-results.json",
+    "coverage_file": "coverage/coverage-final.json",
+    "max_fix_attempts": 2,
+    "max_tests": 4,
+    "include_ui_tests": false,
+    "review_code": true,
+    "post_comment": true,
+    "sandbox_install_network": true,
+    "run_baseline_coverage": true,
+    "max_llm_calls": null,
+    "max_total_tokens": null,
+    "max_cost_usd": 0.25
+  },
+  "error": null,
+  "llm_calls": 2,
+  "input_tokens": 1053,
+  "output_tokens": 241,
+  "coverage_before": 78.57,
+  "coverage_after": 100.0,
+  "comment_id": null,
+  "comment_url": null,
+  "steps": [
+    {
+      "id": "230acb79-cf79-4961-adf7-f39da46aa8bd",
+      "sequence": 1,
+      "node": "baseline",
+      "status": "succeeded",
+      "attempt": 1,
+      "summary": "baseline tests passed; coverage 78.57%",
+      "detail": {
+        "coverage_pct": 78.57,
+        "installed": true,
+        "install": "passed",
+        "test": "passed",
+        "exit_code": 0
+      },
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0.0,
+      "duration_ms": 22009,
+      "error": null,
+      "created_at": "2026-10-27T12:43:21.346993Z"
+    },
+    {
+      "id": "9b910548-23da-44f8-8492-a9445a45ae5c",
+      "sequence": 2,
+      "node": "analyze",
+      "status": "succeeded",
+      "attempt": 1,
+      "summary": "parsed 2 changed file(s), 1 function(s)",
+      "detail": {
+        "files": 2,
+        "functions": 1,
+        "errors": []
+      },
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0.0,
+      "duration_ms": 0,
+      "error": null,
+      "created_at": "2026-10-27T12:43:21.346993Z"
+    },
+    {
+      "id": "3f350487-66a9-4ed5-9524-180346b5ce5a",
+      "sequence": 3,
+      "node": "find_gaps",
+      "status": "succeeded",
+      "attempt": 1,
+      "summary": "1 gap(s), 0 covered, 0 skipped",
+      "detail": {
+        "gaps": 1,
+        "gaps_before_limit": 1,
+        "covered": 0,
+        "skipped": 0,
+        "ui_skipped": 0
+      },
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0.0,
+      "duration_ms": 4,
+      "error": null,
+      "created_at": "2026-10-27T12:43:21.346993Z"
+    },
+    {
+      "id": "2efd661e-93b7-4bf4-ab2a-7cb33a99811f",
+      "sequence": 4,
+      "node": "write",
+      "status": "succeeded",
+      "attempt": 1,
+      "summary": "wrote 1/1 draft(s)",
+      "detail": {
+        "drafts": 1,
+        "gaps": 1,
+        "errors": 0
+      },
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0.0,
+      "duration_ms": 2,
+      "error": null,
+      "created_at": "2026-10-27T12:43:21.346993Z"
+    },
+    {
+      "id": "f8bdbec8-ebc1-4920-a582-4bb47b8d8b1a",
+      "sequence": 5,
+      "node": "execute",
+      "status": "succeeded",
+      "attempt": 1,
+      "summary": "verified 1, rejected 0",
+      "detail": {
+        "install": "reused",
+        "test": "passed",
+        "drafts": 1,
+        "verified": 1,
+        "failed": 0,
+        "report_exists": true,
+        "coverage_pct": 100.0,
+        "round": 1
+      },
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0.0,
+      "duration_ms": 1742,
+      "error": null,
+      "created_at": "2026-10-27T12:43:21.346993Z"
+    },
+    {
+      "id": "4e69baac-441b-4622-b0e4-db474ddff943",
+      "sequence": 6,
+      "node": "review",
+      "status": "succeeded",
+      "attempt": 1,
+      "summary": "review completed",
+      "detail": {
+        "chars": 129
+      },
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0.0,
+      "duration_ms": 0,
+      "error": null,
+      "created_at": "2026-10-27T12:43:21.346993Z"
+    }
+  ],
+  "tests": [
+    {
+      "id": "8b8d225d-2559-440a-90ba-2795eaec1823",
+      "file_path": "tests/score.test.ts",
+      "function_name": "normalizeScore",
+      "source_file": "src/score.ts",
+      "framework": "vitest",
+      "content": "import { describe, expect, it } from \"vitest\";\n\nimport { normalizeScore } from \"../src/score\";\n\ndescribe(\"normalizeScore\", () => {\n  it(\"returns a fraction inside the 0..1 range\", () => {\n    expect(normalizeScore(25, 100)).toBe(0.25);\n  });\n\n  it(\"clamps values below zero and above the maximum\", () => {\n    expect(normalizeScore(-5, 100)).toBe(0);\n    expect(normalizeScore(150, 100)).toBe(1);\n  });\n\n  it(\"rejects invalid inputs\", () => {\n    expect(() => normalizeScore(Number.NaN, 100)).toThrow(RangeError);\n    expect(() => normalizeScore(1, 0)).toThrow(RangeError);\n  });\n});\n",
+      "status": "verified",
+      "attempts": 0,
+      "last_error": null,
+      "created_at": "2026-10-27T12:43:21.354524Z"
+    }
+  ],
+  "sandbox_runs": [
+    {
+      "id": "041c3747-c28d-40f6-baa1-013af7e9f9e9",
+      "phase": "test",
+      "image": "prguard-sandbox:node20",
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "--coverage",
+        "--reporter=json",
+        "--outputFile=vitest-results.json"
+      ],
+      "network_disabled": false,
+      "status": "passed",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 1718,
+      "stdout": "JSON report written to C:<local-path>\n\u001b[34m % \u001b[39m\u001b[2mCoverage report from \u001b[22m\u001b[33mv8\u001b[39m\n------------|---------|----------|---------|---------|-------------------\nFile        | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s \n------------|---------|----------|---------|---------|-------------------\nAll files   |     100 |      100 |     100 |     100 |                   \n math.ts    |     100 |      100 |     100 |     100 |                   \n score.ts   |     100 |      100 |     100 |     100 |                   \n strings.ts |     100 |      100 |     100 |     100 |                   \n------------|---------|----------|---------|---------|-------------------\n",
+      "stderr": "",
+      "coverage": {
+        "line_pct": 100.0,
+        "files": 3
+      },
+      "created_at": "2026-10-27T12:43:21.354524Z"
+    }
+  ],
+  "review": {
+    "content": "FakeLLM review: the deterministic demo run verified the generated tests inside the configured sandbox. No provider call was made.",
+    "cost_usd": 0.0,
+    "created_at": "2026-10-27T12:43:21.354155Z"
+  }
+}

@@ -1,7 +1,7 @@
 # Interview prep
 
 A structured walkthrough of PR-Guard: the 60-second pitch, the architecture, the decisions
-most likely to be challenged, and 40 questions with answers. Every claim matches what was
+most likely to be challenged, and 41 questions with answers. Every claim matches what was
 actually run; the final section lists what was **not** verified so you never overclaim.
 
 ## 60-second pitch
@@ -10,7 +10,9 @@ PR-Guard is a GitHub App that finds changed TypeScript functions with no executi
 asks an LLM to write Vitest coverage, then **runs the generated tests in a network-disabled
 Docker sandbox**. Only tests that pass *and* execute the target function are posted to the
 pull request. It persists every step, cost and sandbox log to SQLite and exposes a
-read-only Next.js dashboard so the decision is auditable.
+read-only Next.js dashboard so the decision is auditable. A public Vercel deployment replays
+one sanitized local capture with **no backend and no secrets**, and says so in a permanent
+banner.
 
 The hard problem is not generating a test. It is trusting one. The design separates
 **generation** (untrusted model output) from **verification** (deterministic execution) and
@@ -41,15 +43,18 @@ Three trust zones:
 
 ## Demo script (5 minutes)
 
-1. Show `docs/screenshots/dashboard-overview.png`: run counts, verified tests, cost.
-2. Show `docs/screenshots/run-detail.png`: six steps, baseline 78.57% -> 100.00%, one
-   verified test, review.
-3. Run `backend/scripts/demo_smoke.py`: real npm/Vitest in a temporary workspace, real
-   SQLite persistence, fake GitHub and FakeLLM.
-4. Show `demo-repo/demo-pr.patch` and explain why `normalizeScore` is an unambiguous gap.
-5. Show the comment body in `data/demo-comment.md`: verified code, unverified section,
+1. Open the live demo (<https://pr-guard-dashboard.vercel.app>) and hold on the amber
+   banner: capture date, commit, `FakeLLM`, fake GitHub, `LocalSandboxRunner`, no backend.
+2. Show the overview: one recorded run, 1 verified test, 78.57% → 100.00%, 23,972 ms, $0.00.
+3. Open the run detail: six steps, the verified test, the captured Vitest output and the
+   disabled **Open PR unavailable** action. Explain that the fake repo has no real PR.
+4. Run `backend/scripts/demo_smoke.py`: real npm/Vitest in a temporary workspace, real
+   SQLite persistence, fake GitHub and FakeLLM. This is the source of the capture.
+5. Show `demo-repo/demo-pr.patch` and explain why `normalizeScore` is an unambiguous gap.
+6. Show the comment body in `data/demo-comment.md`: verified code, unverified section,
    coverage and cost.
-6. Be explicit: local runner is **not** Docker isolation; no live LLM/GitHub call was made.
+7. Be explicit: local runner is **not** Docker isolation; no live LLM/GitHub call was made.
+   The deployed dashboard is a replay, not a live system.
 
 ## Questions
 
@@ -226,8 +231,8 @@ tokens and cost; the smoke showed 2 calls / 1,294 tokens / $0 under FakeLLM.
 **27. Why FakeLLM?**
 Determinism and zero cost. It understands the prompt tags, emits a schema-valid Vitest
 proposal, and lets the pipeline, persistence and dashboard be tested without network or
-credentials. It also makes the Phase 9 smoke reproducible. Provider adapters are tested
-with `httpx.MockTransport`, not live calls.
+credentials. It also makes the local smoke and the public demo capture reproducible. Provider
+adapters are tested with `httpx.MockTransport`, not live calls.
 
 **28. How do you test an LLM-driven system?**
 Layered: pure unit tests for parsing/safety/results; node tests with `FakeLLM` and a fake
@@ -255,13 +260,15 @@ The project uses Playwright for its own dashboard E2E, not for target-repo gener
 
 **32. How do you test the UI?**
 Vitest + React Testing Library with mocked `lib/api.ts` for component/page states, a
-production Next build for type/route correctness, and Playwright against a deterministic
-mock API for overview filtering, detail evidence and not-found navigation. The E2E does not
-prove live FastAPI integration; backend tests cover the real queries.
+production Next build for type/route correctness, Playwright against a deterministic mock
+API for overview filtering, detail evidence and not-found navigation, and a separate
+no-backend Playwright journey for the static demo. The demo suite records every request and
+fails if the browser touches `/api/`; the live-mode E2E does not prove live FastAPI
+integration, and backend tests cover the real queries.
 
 **33. What coverage numbers do you have, and what do they mean?**
 Backend 95.16% branch-aware with 426 passed and 1 skipped (the real-Docker test). Dashboard
-99.21% statements / 91.97% branches / 100% functions / 100% lines with 29 tests. Demo repo
+98.17% statements / 92.30% branches / 100% functions / 99.24% lines with 34 tests. Demo repo
 100% across 11 tests. Coverage is not correctness: the skipped Docker test is a real gap,
 and generated tests are only as good as their assertions.
 
@@ -271,7 +278,8 @@ and generated tests are only as good as their assertions.
 The API can stay private (server-to-server `PRGUARD_API_URL`), there is no browser token or
 CORS surface, and the first paint has data. The cost is that every page is dynamic and the
 dashboard server must reach FastAPI. Mutations stay in the webhook/worker path, so the UI is
-read-only by construction.
+read-only by construction. In demo mode the same server components read build-time JSON, so
+the deployed app has no API base and no outbound call.
 
 **35. Why validate pagination twice?**
 The API is the hard contract for any client: limit 1-100, offset >= 0, status enum, escaped
@@ -279,17 +287,18 @@ repo substring. The page clamps the same values so a hand-edited URL produces a 
 instead of a 422 error page. It is cheap defence in depth.
 
 **36. How is the production image built?**
-Next standalone output, copied with static assets into a `node:20-alpine` runner, uid/gid
-1001, `node server.js`. `outputFileTracingRoot` pins tracing to the dashboard so a parent
-lockfile cannot widen the bundle. The image was written but not built here because Docker is
-unavailable; that is a verification gap, not a claim.
+Next standalone output is opt-in via `NEXT_OUTPUT_STANDALONE=1`; the Dockerfile sets it and
+copies the standalone server plus static assets into a `node:20-alpine` runner, uid/gid
+1001. `outputFileTracingRoot` pins tracing to the dashboard so a parent lockfile cannot widen
+the bundle. Vercel and the local demo build use Next's normal output. The image was written
+but not built here because Docker is unavailable; that is a verification gap, not a claim.
 
 **37. What does CI do?**
 Four jobs: backend (ruff check/format, pytest coverage, sandbox image), dashboard (npm ci,
-typecheck, Vitest/coverage, build, Chromium Playwright against the mock API), demo (install,
-typecheck, tests) and containers (build sandbox/API/dashboard images). Timeouts and
-concurrency cancellation are set. The workflow parses locally but has never run because
-there is no remote and no Docker daemon.
+typecheck, Vitest/coverage, live-mode Playwright against the mock API, demo build, no-backend
+demo Playwright on desktop/mobile), demo (install, typecheck, tests) and containers (build
+sandbox/API/dashboard images). Timeouts and concurrency cancellation are set. The workflow
+parses locally but has never run because there is no remote run yet.
 
 ### Judgment and failure modes
 
@@ -307,7 +316,15 @@ comment after a crash. The first is a verification gap; the second is a design g
 documented fix (list comments, match a hidden marker, update instead of create). I would
 address both before calling the system production-ready.
 
-**40. What would you build next?**
+**40. Why is the public demo recorded instead of live?**
+A live deployment would need a GitHub App installation, provider key, Docker host and a
+public webhook. Those credentials are not available, and putting a demo behind them would
+make it fragile and expensive. Instead, the demo replays one genuine local capture with
+`NEXT_PUBLIC_DEMO_MODE=true`. The banner names the date, commit, `FakeLLM`, fake GitHub and
+`LocalSandboxRunner`; live actions are disabled. I would rather show a smaller, labelled
+artifact than imply a live backend exists.
+
+**41. What would you build next?**
 In order: (1) authenticated dashboard and per-repo authorization; (2) a dedicated sandbox
 runner with a restricted socket/rootless Docker and seccomp; (3) Postgres + multiple
 workers + object storage; (4) comment update/dedupe via the stored marker; (5) evaluation
@@ -337,11 +354,13 @@ Docker socket.
 | --- | --- |
 | Backend tests | 426 passed, 1 skipped |
 | Backend coverage | 95.16% (branch-aware) |
-| Dashboard tests | 29 passed |
-| Dashboard coverage | 99.21% statements, 91.97% branches, 100% functions/lines |
-| Dashboard E2E | 3 Playwright tests against a mock API |
+| Dashboard tests | 34 passed |
+| Dashboard coverage | 98.17% statements, 92.30% branches, 100% functions, 99.24% lines |
+| Dashboard E2E | 3 live-mode (mock API) + 4 demo (desktop/mobile) |
 | Demo repo | 11 tests, 100% statements/branches/functions/lines |
-| Local smoke | 1 verified test, 78.57% -> 100.00%, 2 FakeLLM calls, 1,294 tokens |
+| Demo capture | 1 run, 1 verified test, 6 steps, 23,972 ms, 2 FakeLLM calls, 1,294 tokens, $0.00 |
+| Local smoke | 1 verified test, 78.57% → 100.00%, 2 FakeLLM calls, 1,294 tokens |
+| Secret scan | 10 commits, 940,184 bytes, 0 leaks |
 | LLM caps | 24 calls / 120k tokens / $0.75 defaults; `.prguard.yml` can tighten |
 | Fixer cap | 3 rounds max (demo config: 2) |
 | Webhook body cap | 10 MB; tarball cap 50 MB; extracted cap 200 MB / 20k files |
@@ -356,10 +375,15 @@ Say this plainly:
 - No live GitHub App, Groq or Anthropic call was made. GitHub is faked in processor tests
   and the smoke; adapters use mocked HTTP.
 - GitHub Actions has **not** run. Local equivalents were run individually.
-- Dashboard E2E uses a mock API, not live FastAPI.
+- Dashboard E2E uses a mock API, not live FastAPI. The public demo uses a separate static
+  capture and a no-backend Playwright suite.
 - The screenshots and smoke are a **local FakeLLM demo**, not a production run.
+- The Vercel deployment is a **replay**, not a live service. It has one sanitized run and
+  no database, model, GitHub token or backend.
 - The local sandbox runner is **not** a security boundary and reports that truthfully.
+- No screen recording exists yet; the guide and README say so instead of embedding a
+  fabricated clip.
 
-If asked "did it work?", the precise answer is: the backend, dashboard, demo repo and local
-end-to-end smoke passed as measured; the Docker, live-provider, live-GitHub and CI paths
-remain unverified in this environment.
+If asked "did it work?", the precise answer is: the backend, dashboard, demo repo, demo
+build, Vercel build and local end-to-end smoke passed as measured; the Docker,
+live-provider, live-GitHub, CI and recording paths remain unverified in this environment.

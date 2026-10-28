@@ -178,6 +178,93 @@ select {
   box-shadow: 0 0 0 4px rgba(99, 232, 184, 0.09);
 }
 
+.nav-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.demo-banner {
+  border-bottom: 1px solid rgba(245, 200, 109, 0.25);
+  background:
+    linear-gradient(90deg, rgba(245, 200, 109, 0.12), transparent 55%),
+    rgba(9, 23, 19, 0.92);
+}
+
+.demo-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+}
+
+.demo-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(245, 200, 109, 0.55);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(245, 200, 109, 0.12);
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.demo-copy {
+  min-width: 0;
+}
+
+.demo-copy p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.demo-copy code {
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.demo-sub {
+  margin-top: 2px !important;
+  color: var(--faint) !important;
+  font-size: 11px !important;
+  line-height: 1.45;
+}
+
+.demo-links {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 14px;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.demo-links a {
+  color: var(--amber);
+  text-decoration: underline;
+  text-decoration-color: rgba(245, 200, 109, 0.35);
+  text-underline-offset: 3px;
+}
+
+.demo-links a:hover {
+  color: #ffe4a3;
+}
+
+.demo-note {
+  margin: 0 0 24px;
+  border-left: 2px solid var(--amber);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 14px;
+  background: rgba(245, 200, 109, 0.08);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
 .page-shell {
   min-height: calc(100vh - 150px);
   padding: 58px 0 90px;
@@ -438,6 +525,16 @@ select {
 
 .button:active {
   transform: translateY(1px);
+}
+
+.button-disabled,
+.button-disabled:hover {
+  border-color: var(--line);
+  background: var(--panel-raised);
+  color: var(--faint);
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
 }
 
 .button.primary {
@@ -1213,6 +1310,21 @@ select {
 @media (max-width: 680px) {
   .shell {
     width: min(100% - 28px, 1240px);
+  }
+
+  .demo-banner-inner {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 10px 0;
+  }
+
+  .demo-copy {
+    flex: 1 1 240px;
+  }
+
+  .demo-links {
+    flex: 1 1 100%;
+    margin-left: 0;
   }
 
   .header-inner {

@@ -5,6 +5,7 @@ const MOCK_API_PORT = 4100;
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["**/demo/**"],
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,

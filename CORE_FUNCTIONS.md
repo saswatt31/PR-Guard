@@ -7,16 +7,17 @@ matters, the failure handling, and the tests that exercise it.
 > Evidence legend
 >
 > - **Executed locally:** the Python suite, the Next.js suite/build/E2E, the demo suite and
->   the Phase 9 local smoke were run on the development machine.
+>   the local smoke were run on the development machine.
 > - **Mocked:** GitHub, LLM providers and the Docker daemon are replaced by fakes or
 >   `httpx.MockTransport` in tests.
 > - **Not verified:** no real Docker container, live GitHub App installation, live Groq or
 >   Anthropic call, or GitHub Actions run has been executed. Functions that depend on
 >   those services are described as designed, not as proven end to end.
 >
-> Latest measured numbers: backend **426 passed, 1 skipped, 95.16%**; dashboard **29
-> passed**, 99.21% statements / 91.97% branches / 100% functions / 100% lines; demo
-> **11 passed, 100%**. The single skip is the real-Docker-daemon test.
+> Latest measured numbers: backend **426 passed, 1 skipped, 95.16%**; dashboard **34
+> passed**, 98.17% statements / 92.30% branches / 100% functions / 99.24% lines; demo
+> E2E **4 passed** with no backend; demo repo **11 passed, 100%**. The single skip is the
+> real-Docker-daemon test.
 
 ## Map
 
@@ -54,7 +55,10 @@ matters, the failure handling, and the tests that exercise it.
 | Comment | `format_pr_comment` | `backend/app/comment.py` | Renders only verified tests and bounded unverified reasons. |
 | API | `list_runs` | `backend/app/api/routes.py` | Validated filtering/pagination for the dashboard. |
 | API | `get_run` | `backend/app/api/routes.py` | One query with eager-loaded child records. |
-| Dashboard | `getRuns` / `getRun` / `getStats` | `dashboard/lib/api.ts` | Server-side API access with typed errors. |
+| Dashboard | `getRuns` / `getRun` / `getStats` | `dashboard/lib/api.ts` | Server-side API access with typed errors; switches to static data in demo mode. |
+| Demo | `getDemoRuns` / `getDemoRun` / `getDemoStats` | `dashboard/lib/demo.ts` | Pure in-process filtering and lookup over committed JSON. |
+| Demo | `DemoBanner` | `dashboard/components/DemoBanner.tsx` | Permanent provenance: date, commit, fakes and links. |
+| Demo | `capture_demo_data` | `scripts/capture_demo_data.py` | Exports and sanitizes a genuine local run into the API shape. |
 | Demo | `execute` | `backend/scripts/demo_smoke.py` | The only end-to-end execution available without Docker. |
 
 ---
@@ -599,8 +603,8 @@ process group/creation flags, a timeout that kills the tree (`taskkill /T` on Wi
 `killpg` on POSIX), and the local env allow-list. It reports
 `isolation="local (NOT a security boundary)"` and `network_disabled=False` **even when the
 caller asked for network isolation**, because it cannot enforce it. This is the backend used
-by the Phase 9 smoke and dashboard screenshots; it must never be presented as Docker
-isolation.
+by the local smoke, the demo capture and the dashboard screenshots; it must never be
+presented as Docker isolation.
 
 ---
 
@@ -725,14 +729,83 @@ Server-side `fetch` with `cache: "no-store"`, `Accept: application/json`, URL ba
 `ApiError(..., 0)`; non-2xx responses parse a string `detail` when possible and preserve
 the status. This is the only API surface the dashboard uses, and it contains no mutation.
 
-- **Tests:** 29 Vitest/React Testing Library cases, including the error card, filters,
-  pagination, detail evidence and empty states; Playwright runs three navigation tests
-  against the deterministic mock API.
-- **Not verified:** no Playwright run against live FastAPI; the E2E uses `mock-api.mjs`.
+When `NEXT_PUBLIC_DEMO_MODE=true`, each function returns data from `lib/demo.ts` before any
+fetch. `getDemoRuns` applies the same status/repo filters and limit/offset slicing; `getDemoRun`
+returns `null` for an unknown id and `api.ts` converts that to `ApiError(404)`. The JSON is
+imported, so there is no runtime file read and no API URL.
+
+- **Tests:** 34 Vitest/React Testing Library cases, including the demo loader, banner,
+  capture provenance, disabled live actions, error card, filters, pagination, detail
+  evidence and empty states; Playwright runs three navigation tests against the
+  deterministic mock API and four demo tests against the static capture (desktop + mobile).
+- **Not verified:** no Playwright run against live FastAPI; the live-mode E2E uses
+  `mock-api.mjs`.
 
 ---
 
-## 14. Local smoke harness
+## 14. Demo mode, capture and deployment
+
+### `getDemoRuns(query) -> RunList`, `getDemoRun(runId) -> RunDetail | null`
+
+`dashboard/lib/demo.ts`
+
+The demo loader imports `public/demo-data/{details,runs,stats,manifest}.json` at build time.
+It is a pure function over arrays: no `fetch`, no filesystem, no environment URL. The run
+list applies the same status equality and case-insensitive repository substring as the API,
+clamps `limit` to 1–100 and treats a negative offset as zero. The detail lookup is a linear
+`find` over one or more committed runs. Unknown ids return `null`, and `lib/api.ts` maps that
+to `ApiError(404)`, so the existing `notFound()` page still works.
+
+`DEMO_MODE` accepts `true` or `1`, case-insensitively. It is read once at module load. There
+is no runtime toggle: the deployment is either built as a replay or as a live client.
+
+- **Tests:** `dashboard/tests/demo.test.tsx` exercises the manifest shape, stats, list
+  filtering/pagination, unknown ids and the full API switch; `dashboard/e2e/demo/demo.spec.ts`
+  asserts zero backend or `/api/` requests in a real browser.
+- **Interview angle:** why build-time import is safer than fetching `public/` at runtime, and
+  why the demo path keeps the same interface instead of duplicating pages.
+
+### `DemoBanner({ manifest })`
+
+`dashboard/components/DemoBanner.tsx`
+
+Renders the required sentence from `manifest.captured_at` and `manifest.git_commit_short`,
+plus the provider/GitHub/sandbox caveats, repository link and recording-guide link. It is
+rendered by `app/layout.tsx` on every route when `DEMO_MODE` is true, so a visitor cannot
+reach a detail page without seeing provenance. The same layout disables the API-docs link
+and changes the header pill to `Recorded · read only`.
+
+- **Tests:** banner text, date formatting, commit, both link targets and the detail-page
+  disabled action are asserted in `dashboard/tests/demo.test.tsx`.
+- **Failure mode:** a malformed timestamp renders `unknown date` rather than throwing; the
+  banner still states the commit and the fakes.
+
+### `capture_demo_data.py`
+
+`scripts/capture_demo_data.py`
+
+The only producer of the committed JSON. By default it runs
+`backend/scripts/demo_smoke.py` and then opens the resulting SQLite database. It serialises
+runs through `RunDetail`, `RunSummary`, `RunStats` and `RunList`, so a schema change breaks
+the capture instead of silently drifting from the API. Before writing, it:
+
+1. replaces absolute Windows and POSIX paths with `<local-path>`;
+2. redacts keys whose names match secret/token/password patterns;
+3. rewrites non-demo repository names and SHAs to placeholders;
+4. removes installation ids and comment URLs;
+5. scans the serialized payload for GitHub, OpenAI, AWS, Google, Slack, GitLab and private-key
+   patterns and refuses to write on a match;
+6. records the source commit, branch, dirty state, run config and caveats in `manifest.json`.
+
+- **Tests:** no dedicated Python test for the exporter; its output is validated by the
+  dashboard demo tests and the demo E2E. The sanitizer is deliberately fail-closed, so a
+  false positive stops the build rather than leaking data.
+- **Limitation:** the capture uses `FakeLLM` and `LocalSandboxRunner`; the manifest says so.
+  It is not evidence of Docker isolation or a live provider call.
+
+---
+
+## 15. Local smoke harness
 
 ### `execute(args)` in `backend/scripts/demo_smoke.py`
 
@@ -766,7 +839,9 @@ GitHub API calls or provider LLMs.
 | Run processor | `test_run_processor.py` |
 | Comment | `test_comment.py` |
 | API/schemas/models/settings/main | `test_api.py`, `test_schemas.py`, `test_models.py`, `test_settings.py`, `test_main.py` |
-| Dashboard | `dashboard/**/*.test.ts(x)`, `dashboard/e2e/dashboard.spec.ts` |
+| Dashboard | `dashboard/tests/*.test.ts(x)`, `dashboard/e2e/dashboard.spec.ts` |
+| Demo dashboard | `dashboard/tests/demo.test.tsx`, `dashboard/e2e/demo/demo.spec.ts` |
+| Demo capture | `scripts/capture_demo_data.py` (validated by the demo dashboard tests) |
 | Demo repo | `demo-repo/tests/*.test.ts` |
 
 ## What is not proven
@@ -774,6 +849,8 @@ GitHub API calls or provider LLMs.
 - No real Docker container, image build or Compose stack has run here.
 - No live GitHub App webhook, installation token, tarball download or comment has run here.
 - No live Groq/Anthropic call has run here; adapter tests use `httpx.MockTransport`.
-- The GitHub Actions workflow has not executed (no remote, no Docker daemon).
-- The only end-to-end run is the Phase 9 local smoke, which uses `LocalSandboxRunner`,
-  `FakeLLM` and a fake GitHub client.
+- The GitHub Actions workflow has not executed (no remote run yet).
+- The only end-to-end run is the local smoke, which uses `LocalSandboxRunner`, `FakeLLM`
+  and a fake GitHub client; the public demo replays that run's sanitized JSON.
+- No screen recording exists yet; `docs/DEMO_RECORDING.md` defines the shot list and embed
+  location instead of embedding an empty player.
